@@ -78,15 +78,15 @@
     "@earendil-works/pi-tui": ">=0.79.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "catalog:",
+    "@biomejs/biome": "^2.4.16",
     "@earendil-works/pi-coding-agent": "0.79.1",
     "@earendil-works/pi-tui": "0.79.1",
-    "@types/node": "catalog:",
-    "rollup": "catalog:",
-    "rollup-plugin-dts": "catalog:",
-    "rumdl": "catalog:",
-    "typescript": "catalog:",
-    "vitest": "catalog:"
+    "@types/node": "^22.15.3",
+    "rollup": "^4.62.2",
+    "rollup-plugin-dts": "^6.4.1",
+    "rumdl": "^0.2.10",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
   },
   "dependencies": {
     "tree-sitter-bash": "^0.25.1",
