@@ -1,10 +1,10 @@
 import { getToolInputPath } from "#src/access-intent/tool-input-path";
 import type { PathNormalizer } from "#src/path-normalizer";
+import { keyValueBlock } from "#src/permission-prompts";
 import type { ScopedPermissionResolver } from "#src/permission-resolver";
 import { SessionApproval } from "#src/session-approval";
 import { deriveApprovalPattern } from "#src/session-rules";
 import type { ToolAccessExtractorLookup } from "#src/tool-access-extractor-registry";
-import { keyValueBlock } from "#src/permission-prompts";
 import type { GateDescriptor, GateResult } from "./descriptor";
 import { accessFactsFromPath } from "./helpers";
 import type { ToolCallContext } from "./types";
