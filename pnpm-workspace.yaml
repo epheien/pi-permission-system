@@ -1,6 +1,9 @@
 packages:
   - "."
 
+overrides:
+  undici: ^8.9.0
+
 allowBuilds:
   "@google/genai": true
   protobufjs: true
