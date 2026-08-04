@@ -1,0 +1,134 @@
+---
+status: accepted
+date: 2026-07-24
+---
+
+# 0009 — The bash path projection is a completeness contract, not a best-effort heuristic
+
+## Status
+
+Accepted.
+This decision states the contract the bash path projection upholds, and settles how a "the gate missed my path" report is triaged.
+It is the framing for [#645], which closes two gaps the contract names as in-scope; it composes with `docs/decisions/0003-git-bash-posix-path-semantics.md` (win32 token shapes) and `docs/decisions/0007-model-judge-authorizer-chain-adr.md` (the judge that absorbs false positives).
+
+## Context
+
+The bash path gates decide which argument tokens of a shell command are filesystem operands, so the `path` and `external_directory` surfaces can rule on them.
+This projection has been patched five times in response to individual bypass reports:
+
+- [#494] / [#509] — bare filenames (`cat id_rsa`) bypass the `path` surface; fixed with rule-driven promotion, matching the **raw token** against specific non-`*` `path` rules.
+- [#520] — win32 backslash-relative tokens (`dir\file`) are not recognized as path-shaped.
+- [#533] — Git Bash/MSYS POSIX-absolute tokens resolve wrongly on win32.
+- [#583] — a bare `/` (filesystem root) is rejected before the path surfaces.
+- [#645] — a bare in-project **symlink** whose *target* is denied, and a path embedded in an option (`--file=/tmp/patterns`).
+
+Each fix was correct in isolation, and each was followed by another report of the same shape.
+That recurrence is the signal worth acting on: the reports are not independent bugs but repeated encounters with an unstated boundary.
+
+The structural cause is that token classification was **binary** — a token is a path candidate or it is not — while the domain is **three-valued**:
+
+- **Definitely a path** — the shape says so (leading `/`, `~/`, `..`, a separator, a drive letter).
+- **Definitely not a path** — the shape rules it out (a flag, a URL, an env assignment, an `@scope` package, a regex).
+- **Unknown** — a bare word (`status`, `id_rsa`, `outside-link`), which may name a file or may be a subcommand, branch, or search pattern.
+
+Binary classification collapses *unknown* into *not a path*, and that collapse is silent and fail-open: an unknown token is dropped before any gate sees it, so a permissive bash rule (`cat *`) decides the call and the `path`/`external_directory` policy never runs.
+[#509] addressed one slice of *unknown* by consulting the ruleset, which coupled the classifier to policy and still missed any token whose **resolved** identity — not its spelling — is what a rule names.
+A symlink is exactly that case: `outside-link` matches no rule by name, and its target is never computed because promotion is decided before resolution.
+
+## Decision
+
+### The principle — candidacy from the filesystem, decision from policy
+
+The projection resolves *unknown* with the filesystem rather than with the ruleset:
+
+> A bare token is a path candidate **iff it names an existing filesystem entry**.
+> A promoted candidate is then gated by explicit `path`/`external_directory` rules, or by resolving outside the working tree — never by the universal fallback.
+
+Candidacy and decision are separate concerns with separate sources.
+Candidacy asks "is this a file?"
+and the filesystem answers authoritatively.
+Decision asks "may it be touched?"
+and the composed ruleset answers.
+The classifier therefore needs no knowledge of policy, and policy needs no knowledge of token spelling.
+
+The universal-fallback exclusion is what keeps this from becoming a prompt firehose, and it needs no new mechanism: `describeBashPathGate` already treats a check whose `matchedPattern` is `undefined` — only the synthesized universal default matched — as unrestricted ([#58]), and `permission-manager.ts` sets `matchedPattern` only for `config`/`session`-layer rules.
+A promoted token that matches no explicit rule is therefore unrestricted for free.
+
+### What the projection guarantees
+
+A path reaches the `path` and `external_directory` surfaces when it appears as:
+
+- A **shape-classified token** — absolute (`/x`), home-relative (`~/x`), parent-traversal (`../x`), separator-bearing (`a/b`), a Windows drive-letter path (`C:/x`, `D:\x`), or — under the win32 flavor — a backslash-relative token (`dir\file`, [#520]).
+- A **redirect target** (`> out.txt`, `2>/tmp/log`).
+- A **value embedded in a long option** (`--file=/tmp/patterns`), split at collection time and classified by the ordinary shape rules ([#645]).
+- A **bare token naming an existing filesystem entry** — the existence probe ([#645]).
+  Its canonical (symlink-resolved) form is what policy matches, so a symlink is gated by rules naming its target ([#493]).
+- Any of the above resolved against the **effective working directory** after literal current-shell `cd` folding; a non-literal `cd` renders the base unknown and keeps tokens literal-only ([#393]).
+
+Opacity is handled separately and conservatively: a wrapper command that hides its payload (`bash -c`, `eval`, `sudo`, `xargs`, …) is floored from `allow` to `ask` rather than projected.
+
+### What the projection deliberately omits
+
+These are **accepted residuals**, not open bugs:
+
+- **Nonexistent bare write targets** (`touch newfile`, `mv a newfile`) — the probe cannot see a file that does not exist yet.
+  Redirect targets, the common creation path, are collected separately and unaffected.
+- **Glued short-option values** (`-f/tmp/x`) — distinguishing a glued value from a cluster of boolean flags (`-rf`) requires per-command option knowledge.
+- **Computed paths** (`$VAR`, `$(cmd)`, `"$HOME/x"`) — not statically resolvable; where a computed value affects the working directory, the unknown-base machinery already degrades conservatively.
+- **Per-command argument semantics** — which positional argument of `grep`/`git`/`kubectl` is a file.
+  `PATTERN_FIRST_COMMANDS` encodes a deliberately small exception for pattern-first commands; generalizing it means shipping and maintaining an option table per tool.
+
+### The layering principle — surface deterministically, discriminate with judgment
+
+The deterministic layer biases toward **surfacing**: when a token could be a real operand, it becomes an `ask` rather than a silent allow.
+It does not try to decide whether an ask is *warranted* in context — that is the model-judge Authorizer chain's job ([#620], ADR 0007), which reviews a surfaced ask with the full command in view and can dismiss `git grep id_rsa` as a search pattern.
+
+The asymmetry justifying this split: **over-suppression is unrecoverable, over-surfacing is recoverable.**
+A path silently dropped is a bypass with no later opportunity to catch it; a path surfaced unnecessarily is a prompt a human or a judge link resolves.
+So the deterministic layer never trades a missed operand for a quieter prompt, and per-command cleverness belongs above it, not inside it.
+
+### Determinism and the filesystem
+
+Filesystem state is part of the decision input: existence (this ADR) and symlink targets ([#493]).
+The invariant is therefore stated over that input — *same policy + same filesystem state + same command → same decision* — not over the command alone.
+
+This is not a new concession.
+Canonicalization made resolution filesystem-dependent when it shipped, and it is the only sound treatment: a symlink's meaning simply is not a property of its name.
+Ambient, non-filesystem host state (environment variables, which shell binary was resolved, `cygpath` output) remains excluded, per ADR 0003.
+
+Empirically the probe is highly selective: over 2358 deduplicated real bash commands from the permission review log, 3535 bare tokens survived the rejection prelude and **118 (3.3%)** named an existing entry.
+Cost is ~0.04 ms p95 per command, ~19% of the already-paid tree-sitter parse.
+
+## Rejected alternatives
+
+- **Promote every bare token to the `path` surface (literal read-tool parity).**
+  Rejected: the universal fallback defaults to `ask`, so every bare argument of every command (`git status`, `npm run build`) would prompt.
+  Parity with the read tool is the wrong target — a read-tool input is known to be a path, and a bash argument is not.
+- **Keep rule-driven promotion and widen it** (match `*` patterns, or match canonical forms too).
+  Rejected: it couples the classifier to the ruleset, makes candidacy depend on policy shape, and — matching spelling rather than identity — still cannot see that `outside-link` is `.some.secret`.
+- **Floor to `ask` whenever a bare token cannot be proven safe.**
+  Rejected: this defeats any `bash` allow rule under a restrictive path policy, which is the configuration users reach for precisely to reduce prompting.
+- **Per-command argument tables.**
+  Rejected as a deterministic-layer mechanism: unbounded maintenance surface, and it duplicates in brittle static data what the judge link ([#620]) does with the command in context.
+
+## Consequences
+
+- A "the bash gate missed my path" report is now triaged against this contract: it is either **inside** it (a bug — the projection failed a guarantee) or **outside** it (an accepted residual, or a judge-layer concern).
+  This is the durable outcome; the recurrence in Context was a symptom of having no such test.
+- The [#509] promotion thread is deleted: `PathRuleTokenMatcher`, `PermissionManager.getPromotablePathTokenMatcher`, and the five-layer parameter thread from manager to resolver.
+  The classifier is once again pure and policy-free.
+- `PathNormalizer` gains `entryExists`, keeping the filesystem edge in the same object that owns canonicalization; the classifiers stay pure shape functions.
+- Bare tokens naming existing files become gateable, so a config using `path`/`external_directory` denies now sees operands it previously missed — a breaking behavior change on upgrade ([#645]), remediated with `path`/`external_directory` allow patterns.
+- The probe adds one `lstat` per prelude-surviving bare token with a known base.
+  If a future workload makes that cost material, the fallback is to gate the probe on "any explicit `path`/`external_directory` restriction exists in config" — a pipeline-level consult that still keeps the classifier policy-free.
+
+[#58]: https://github.com/gotgenes/pi-packages/issues/58
+[#393]: https://github.com/gotgenes/pi-packages/issues/393
+[#493]: https://github.com/gotgenes/pi-packages/issues/493
+[#494]: https://github.com/gotgenes/pi-packages/issues/494
+[#509]: https://github.com/gotgenes/pi-packages/issues/509
+[#520]: https://github.com/gotgenes/pi-packages/issues/520
+[#533]: https://github.com/gotgenes/pi-packages/issues/533
+[#583]: https://github.com/gotgenes/pi-packages/issues/583
+[#620]: https://github.com/gotgenes/pi-packages/issues/620
+[#645]: https://github.com/gotgenes/pi-packages/issues/645

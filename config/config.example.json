@@ -1,0 +1,46 @@
+{
+  "$schema": "https://raw.githubusercontent.com/gotgenes/pi-packages/main/packages/pi-permission-system/schemas/permissions.schema.json",
+
+  "debugLog": false,
+  "permissionReviewLog": true,
+  "yoloMode": false,
+  "doublePressToConfirm": true,
+
+  "toolInputPreviewMaxLength": 400,
+  "toolTextSummaryMaxLength": 120,
+
+  "piInfrastructureReadPaths": [],
+
+  "authorizerChain": [],
+
+  "shellTools": {
+    "exec_command": { "commandArgument": "cmd", "workdirArgument": "workdir" }
+  },
+
+  "permission": {
+    "*": "ask",
+    "path": {
+      "*": "allow",
+      "*.env": "deny",
+      "*.env.*": "deny",
+      "*.env.example": "allow"
+    },
+    "read": "allow",
+    "write": "deny",
+    "edit": "deny",
+    "bash": {
+      "*": "ask",
+      "git *": "ask",
+      "git status": "allow",
+      "git diff": "allow",
+      "npm *": { "action": "deny", "reason": "Use pnpm instead" }
+    },
+    "mcp": { "*": "ask", "mcp_status": "allow", "mcp_list": "allow" },
+    "skill": { "*": "ask" },
+    "external_directory": {
+      "*": "ask",
+      "~/development/*": "allow",
+      "~/.cargo/registry/*": "allow"
+    }
+  }
+}

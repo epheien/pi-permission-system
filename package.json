@@ -1,0 +1,96 @@
+{
+  "name": "@gotgenes/pi-permission-system",
+  "version": "24.0.0",
+  "description": "Permission enforcement extension for the Pi coding agent.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/public.d.ts",
+      "default": "./src/service.ts"
+    }
+  },
+  "imports": {
+    "#src/*": "./src/*",
+    "#test/*": "./test/*"
+  },
+  "files": [
+    "src",
+    "dist",
+    "config/config.example.json",
+    "schemas/permissions.schema.json",
+    "docs/*.md",
+    "docs/guides",
+    "docs/migration",
+    "docs/assets",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "check": "tsc --noEmit",
+    "build:types": "rollup -c rollup.dts.config.mjs",
+    "prepack": "pnpm run build:types",
+    "gen:schema": "node --experimental-strip-types scripts/generate-permissions-schema.ts && biome format --write schemas/permissions.schema.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify:public-types": "bash scripts/verify-public-types.sh",
+    "lint:md": "rumdl check *.md docs/**/*.md",
+    "lint": "biome check . && eslint . && pnpm run lint:md"
+  },
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-extension",
+    "pi-coding-agent",
+    "coding-agent",
+    "permissions",
+    "policy",
+    "access-control",
+    "authorization",
+    "security"
+  ],
+  "author": {
+    "name": "Chris Lasher"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gotgenes/pi-packages.git",
+    "directory": "packages/pi-permission-system"
+  },
+  "homepage": "https://github.com/gotgenes/pi-packages/tree/main/packages/pi-permission-system#readme",
+  "bugs": {
+    "url": "https://github.com/gotgenes/pi-packages/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.79.0",
+    "@earendil-works/pi-tui": ">=0.79.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "catalog:",
+    "@earendil-works/pi-coding-agent": "0.79.1",
+    "@earendil-works/pi-tui": "0.79.1",
+    "@types/node": "catalog:",
+    "rollup": "catalog:",
+    "rollup-plugin-dts": "catalog:",
+    "rumdl": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "dependencies": {
+    "tree-sitter-bash": "^0.25.1",
+    "web-tree-sitter": "^0.26.9",
+    "zod": "^4.4.3"
+  }
+}

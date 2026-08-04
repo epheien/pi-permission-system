@@ -1,0 +1,424 @@
+# Event API
+
+The extension provides two cross-extension integration surfaces:
+
+1. **Service accessor** (preferred) — a `Symbol.for()`-backed synchronous API on `globalThis` for direct policy queries.
+2. **Event bus** — broadcasts on `pi.events` for observation.
+
+---
+
+## Service Accessor
+
+The preferred way for other extensions to query the permission policy is the `Symbol.for()`-backed service accessor.
+It provides direct, synchronous, type-safe function calls.
+
+### Quick Start
+
+```typescript
+try {
+  const { getPermissionsService } = await import(
+    "@gotgenes/pi-permission-system"
+  );
+  const permissions = getPermissionsService();
+  if (permissions) {
+    const result = permissions.checkPermission("bash", "git push");
+    console.log(result.state); // "allow" | "deny" | "ask"
+  }
+} catch {
+  // Not installed — graceful degradation
+}
+```
+
+### How It Works
+
+Pi's extension loader creates a fresh [jiti](https://github.com/nicolo-ribaudo/jiti) instance per extension with `moduleCache: false`, which isolates module-level state.
+`Symbol.for()` and `globalThis` are process-global by spec, so they survive this isolation.
+
+The permission-system extension publishes a service object on `globalThis` via `Symbol.for("@gotgenes/pi-permission-system:service")` at `session_start`.
+Consumers call `getPermissionsService()` to retrieve it — even though their `import()` loads a fresh module copy, the accessor reads from the shared `globalThis` slot.
+An in-process subagent child does not publish its own service; inside a child, `getPermissionsService()` resolves the parent's service.
+A consumer reacting to the `permissions:ready` broadcast (also emitted at `session_start`, after the publish) can resolve the service immediately.
+
+All types below are directly importable and type-check with `tsc` out of the box.
+`@gotgenes/pi-permission-system`'s published `exports` resolve `import type { … }` to a self-contained, bundled declaration file with no internal module references, so a downstream `tsconfig.json` needs no special path configuration.
+
+### API
+
+The `PermissionsService` interface:
+
+```typescript
+interface PermissionsService {
+  /** Query the permission policy for a surface and value. */
+  checkPermission(
+    surface: string,
+    value?: string,
+    agentName?: string,
+  ): PermissionCheckResult;
+
+  /** Query tool-level permission state for pre-filtering before session creation. */
+  getToolPermission(toolName: string, agentName?: string): PermissionState;
+
+  /**
+   * Register a custom preview formatter for a specific tool name.
+   * Returns a disposer that unregisters the formatter.
+   * Throws if a formatter is already registered for that tool name.
+   */
+  registerToolInputFormatter(
+    toolName: string,
+    formatter: (input: Record<string, unknown>) => string | undefined,
+  ): () => void;
+
+  /**
+   * Register a custom access-intent extractor for a specific tool name.
+   * Declares the filesystem path a tool accesses so the `path` and
+   * `external_directory` gates can see it. Returns a disposer; throws if an
+   * extractor is already registered for that tool name.
+   */
+  registerToolAccessExtractor(
+    toolName: string,
+    extractor: (input: Record<string, unknown>) => string | undefined,
+  ): () => void;
+}
+```
+
+#### `checkPermission`
+
+| Parameter   | Required | Description                                                                              |
+| ----------- | -------- | ---------------------------------------------------------------------------------------- |
+| `surface`   | Yes      | Permission surface: `"bash"`, `"read"`, `"mcp"`, `"skill"`, `"external_directory"`, etc. |
+| `value`     | No       | Value to evaluate (command, name, path); defaults to `""`                                |
+| `agentName` | No       | Agent name for per-agent policy resolution                                               |
+
+Returns `PermissionCheckResult` with fields `state`, `matchedPattern`, `source`, `origin`, etc.
+
+For a path-shaped surface (`path`, `external_directory`, or a path-bearing tool — `read`/`write`/`edit`/`grep`/`find`/`ls`), the supplied `value` is matched against both the path as given and its canonical (symlink-resolved) form, at parity with the gates — so a query for a symlinked path matches a rule on its real target.
+
+For the `bash` surface, a `value` containing a chained or nested command (joined by `&&`, `||`, `;`, `|`, `&`, or newlines, or nested in a command substitution/subshell) is decomposed into its command-pattern units and resolved most-restrictive (`deny` > `ask` > `allow`), at parity with the enforcement gate — so `cd /repo && npm install x` returns the decision of the `npm install x` unit, not the leading `cd`.
+A previously chained command that returned `allow` (riding an allowed leading command) may therefore now return `deny`/`ask`.
+Decomposition needs the tree-sitter parser, which is warmed at `before_agent_start` (before any tool call); a bash query in the brief pre-warm window falls back to a whole-string match, so the answer is never weaker than the gate — only strengthened once warm.
+
+#### `getToolPermission`
+
+Returns `"allow"` | `"deny"` | `"ask"` for a tool name without considering command-level rules.
+Use this to pre-filter a tool list before creating a child session — it avoids calling `checkPermission` per tool and interpreting the full result.
+
+```typescript
+const denied = tools.filter(
+  (t) => permissions.getToolPermission(t, agentName) === "deny",
+);
+```
+
+#### `registerToolInputFormatter`
+
+Register a custom preview formatter for a specific tool name.
+Permission ask-prompts call your formatter while building the prompt text, so you can show a human-readable summary of a tool call instead of the default truncated JSON.
+
+```typescript
+registerToolInputFormatter(
+  toolName: string,
+  formatter: (input: Record<string, unknown>) => string | undefined,
+): () => void; // returns a disposer
+```
+
+Registration rules:
+
+- One formatter per tool name.
+  A second `register` for the same name throws — there is no silent override.
+- The returned disposer unregisters the formatter.
+  It is identity-guarded, so a stale disposer cannot evict a later registration of the same name.
+
+##### Which tool name to key on
+
+The `toolName` you register is matched against the **registered Pi tool name** the agent invoked — not against MCP server/tool pairs.
+
+- For a tool your extension registers directly with Pi, use that tool's exact name (the same string Pi shows in `pi.getAllTools()`).
+- For **MCP** calls, every server tool arrives as the single umbrella `"mcp"` tool, with the real target in `input.tool` (e.g. `"exa:search"`).
+  You therefore cannot register a formatter per `server:tool`.
+  The `"mcp"` name is already claimed by the built-in summarizer (below), and because duplicate registration throws, you cannot replace it.
+  If you need richer per-server MCP previews, open an issue — that requires a chained-formatter model this seam does not yet provide.
+- `"bash"` never reaches your formatter: bash prompts take a dedicated branch that shows the command directly.
+
+##### What your formatter receives
+
+The `input` argument is the raw tool-call input object exactly as the agent supplied it (the tool's arguments).
+It is always a plain record; shapes by tool:
+
+| Tool                   | `input` shape                                                                           |
+| ---------------------- | --------------------------------------------------------------------------------------- |
+| `mcp` (umbrella)       | `{ tool: "server:tool", server?, arguments?: object, … }` — summarize `input.arguments` |
+| `read`                 | `{ path, offset?, limit? }`                                                             |
+| `write`                | `{ path, content }`                                                                     |
+| `edit`                 | `{ path, edits?: […] }` or `{ path, oldText, newText }`                                 |
+| `grep` / `find` / `ls` | `{ pattern?, glob?, path? }`                                                            |
+| your own tool          | whatever input schema your tool registered                                              |
+
+Treat every field as untrusted: the agent can emit malformed or partial input, so read defensively (type-check before use) rather than assuming a shape.
+
+##### What your return value does
+
+The returned string is spliced into the middle of the prompt sentence:
+
+```text
+Agent 'Explore' requested tool 'deploy' <your fragment>. Allow this call?
+```
+
+Return a short grammatical fragment that reads naturally in that slot — e.g. `"with target staging (3 services)"` or `"runs 2 commands"`, not a full sentence and not raw JSON.
+
+Return semantics:
+
+- Return a **string** to use it verbatim as the preview (this also overrides the built-in preview for built-in tools like `read`/`edit`).
+- Return **`undefined`** to decline — the prompt falls through to the built-in formatter for that tool, and finally to the truncated-JSON default.
+  Prefer `undefined` over `""` when you have nothing useful to add: an empty string short-circuits the fallthrough and suppresses the default preview entirely.
+
+##### Your formatter must not throw
+
+The core does **not** wrap your formatter in a `try/catch`.
+A thrown error propagates into prompt construction and can break the permission prompt — a denial-of-service on the gate.
+Guard your own parsing and return `undefined` on anything unexpected.
+
+##### End-to-end wiring
+
+Register during your extension's initialization and store the disposer for teardown:
+
+```typescript
+export default function myExtension(pi: ExtensionAPI): void {
+  let disposeFormatter: (() => void) | undefined;
+
+  void (async () => {
+    try {
+      const { getPermissionsService } = await import(
+        "@gotgenes/pi-permission-system"
+      );
+      const permissions = getPermissionsService();
+      disposeFormatter = permissions?.registerToolInputFormatter(
+        "deploy", // a tool THIS extension registers with Pi
+        (input) => {
+          const target =
+            typeof input.target === "string" ? input.target : undefined;
+          const services = Array.isArray(input.services)
+            ? input.services.length
+            : undefined;
+          if (!target) return undefined; // decline → default preview
+          return services !== undefined
+            ? `with target ${target} (${services} services)`
+            : `with target ${target}`;
+        },
+      );
+    } catch {
+      // permission-system not installed — nothing to register
+    }
+  })();
+
+  pi.on("session_shutdown", () => {
+    disposeFormatter?.();
+    disposeFormatter = undefined;
+  });
+}
+```
+
+Reload note: on `/reload`, the permission-system publishes a fresh service backed by a new registry, so previous registrations are dropped.
+Re-register on every initialization (as above) rather than once globally; the disposer is for explicit teardown within a single load.
+
+##### Recommended practices
+
+- Keep previews short — they appear inline in a yes/no prompt, and the result is truncated by the configured preview length anyway.
+- Never surface secrets (tokens, keys, full request bodies) in a preview; summarize counts and identifiers instead.
+- Parse defensively and return `undefined` on malformed input — never throw.
+- Return a grammatical fragment, not raw JSON or a full sentence.
+- Register idempotently on each extension load; dispose on `session_shutdown`.
+
+##### Built-in MCP summarizer
+
+A built-in formatter is registered for the `"mcp"` tool at startup (through this same public API).
+It renders a compact `with key: value, …` summary of the call's `arguments` and returns `undefined` when there are no arguments, leaving the MCP target prompt unchanged.
+This is the reference implementation for the seam — see `src/builtin-tool-input-formatters.ts`.
+
+#### `registerToolAccessExtractor`
+
+Declare the filesystem path a tool will access so the cross-cutting `path` and `external_directory` gates can evaluate it.
+
+```typescript
+registerToolAccessExtractor(
+  toolName: string,
+  extractor: (input: Record<string, unknown>) => string | undefined,
+): () => void; // returns a disposer
+```
+
+You usually do **not** need this.
+Path gating is on by default for every tool whose input follows the convention:
+
+- Built-in file tools (`read`, `write`, `edit`, `find`, `grep`, `ls`) and any tool exposing `input.path` are extracted automatically.
+- MCP calls are extracted from `input.arguments.path`.
+- `bash` is never extracted here — it has its own token-based path gates.
+
+Register an extractor only when a tool carries its path under a **non-standard key** (e.g. `input.target` or `input.file`).
+Return the path string, or `undefined` to decline.
+
+```typescript
+const dispose = permissions.registerToolAccessExtractor("ffgrep", (input) =>
+  typeof input.target === "string" ? input.target : undefined,
+);
+```
+
+Registration rules mirror `registerToolInputFormatter`: one extractor per tool name (a second `register` for the same name throws), and the returned disposer is identity-guarded.
+The extractor must not throw — guard your parsing and return `undefined` on anything unexpected.
+
+#### Subagent session registration
+
+In-process subagent registration is event-driven.
+`@gotgenes/pi-subagents` emits `subagents:child:session-created` before `bindExtensions()` and `subagents:child:disposed` in the run's `finally`; the permission system subscribes automatically — no service call from the spawner is required.
+See [Subagent Integration](subagent-integration.md) for details.
+
+### Reload Safety
+
+During `/reload`, all extensions re-initialize.
+The permission-system re-publishes a fresh service at `session_start`; teardown is identity-scoped, so a superseded generation's shutdown only clears the slot when it still owns it and cannot wipe the new service.
+Consumers that re-initialize during reload naturally get the new instance.
+
+Best practice: call `getPermissionsService()` per use rather than caching the reference.
+
+### Graceful Degradation
+
+`getPermissionsService()` returns `undefined` when the permission-system extension has not loaded (or has been unloaded).
+The `import()` throws if the package is not installed.
+Wrap both in `try/catch` + `if` guard as shown in the Quick Start example.
+
+---
+
+## Event Bus
+
+The extension also emits events on Pi's `pi.events` bus so other extensions can observe permission decisions and integrate with the policy system without importing this package.
+
+## Stability Guarantee
+
+Fields may be added to any payload, but existing fields will not be removed or renamed without a semver-major version bump.
+The broadcast contract is defined by the published TypeScript types plus package semver — broadcast payloads (`permissions:ready`, `permissions:ui_prompt`, `permissions:decision`) carry no `protocolVersion`.
+Consumers should read broadcast payloads defensively (field-presence checks) rather than version-gating — that is robust to any shape skew between independently-versioned sibling extensions.
+
+All three broadcasts are best-effort: a throwing listener cannot block permission handling, session startup, or gate resolution.
+
+## Channel Reference
+
+| Channel                 | Direction | When                              | Payload type              |
+| ----------------------- | --------- | --------------------------------- | ------------------------- |
+| `permissions:ready`     | Broadcast | At `session_start`, after publish | `PermissionsReadyEvent`   |
+| `permissions:ui_prompt` | Broadcast | Before active UI prompt           | `PermissionUiPromptEvent` |
+| `permissions:decision`  | Broadcast | After every gate resolution       | `PermissionDecisionEvent` |
+
+---
+
+## UI Prompt Broadcasts
+
+The permission system emits `permissions:ui_prompt` immediately before it invokes the active user-facing permission UI.
+This event is for integrations such as notification extensions that should alert only when the user needs to respond to a permission prompt.
+It is not a generic "permission request entered waiting state" event, and it does not imply the prompt will be approved.
+Policy decisions that resolve without an active UI prompt, such as `policy_allow`, `policy_deny`, `session_approved`, `infrastructure_auto_allowed`, or `auto_approved`, do not emit this event.
+Non-UI child sessions also do not emit this event when they create a forwarded permission request; the parent UI session emits it immediately before showing the forwarded permission dialog.
+A forwarded request the parent's own recorded policy decides (a matching `allow` or `deny`) is answered without a prompt and emits no event; the event fires only when the parent is actually about to ask the human.
+Forwarded prompts that do reach the human are not degraded: the parent emits the child's original `source` and the same `surface`/`value` display projection, plus a populated `forwarding` context identifying the requesting subagent.
+
+The payload is lean by design — `surface`/`value` are the normalized display projection a notification consumer reads, not a mirror of the internal review log.
+Read defensively rather than version-gating: broadcast payloads carry no `protocolVersion`.
+
+```typescript
+import type { PermissionUiPromptEvent } from "@gotgenes/pi-permission-system";
+
+pi.events.on("permissions:ui_prompt", (raw) => {
+  const event = raw as PermissionUiPromptEvent;
+  // Defensive read: tolerate any shape skew between sibling extensions.
+  if (typeof event.value !== "string" && typeof event.message !== "string") {
+    return;
+  }
+  notify(event.surface, event.value, event.message);
+  // e.g. "bash" "git push" "Allow git push?"
+});
+```
+
+### Payload Fields
+
+| Field        | Type                             | Description                                                            |
+| ------------ | -------------------------------- | ---------------------------------------------------------------------- |
+| `requestId`  | `string`                         | Unique ID for the permission request being prompted                    |
+| `source`     | `PermissionUiPromptSource`       | Prompt origin: `"tool_call"`, `"skill_input"`, or `"skill_read"`       |
+| `surface`    | `string \| null`                 | Normalized display surface (e.g. `"bash"`, `"skill"`), when known      |
+| `value`      | `string \| null`                 | Normalized display value (command, path, skill name, etc.), when known |
+| `agentName`  | `string \| null`                 | Active/requesting agent name, when known                               |
+| `message`    | `string`                         | Message displayed in the permission prompt                             |
+| `forwarding` | `ForwardedPromptContext \| null` | Forwarding context, or `null` for a direct prompt                      |
+
+Forwarding is orthogonal to origin: a forwarded subagent prompt keeps its original `source` and is identified by a non-null `forwarding` field, not by a dedicated source value.
+
+#### `ForwardedPromptContext`
+
+Present only when the prompt was forwarded from a non-UI subagent.
+
+| Field                | Type             | Description                                    |
+| -------------------- | ---------------- | ---------------------------------------------- |
+| `requesterAgentName` | `string \| null` | Requesting subagent's display name, when known |
+| `requesterSessionId` | `string \| null` | Requesting subagent's session id, when known   |
+
+The `surface`/`value` pair is a deliberate display projection that replaces the redundant per-source fields (`command`/`path`/`target`/`skillName`/`toolName`/`toolCallId`/`toolInputPreview`/`sessionLabel`) from earlier drafts — none of which the notification use case reads.
+The stability guarantee is additive, so any can be reintroduced in a later minor when a concrete consumer needs them.
+
+---
+
+## Decision Broadcasts
+
+Every permission gate resolution emits a `permissions:decision` event, regardless of outcome.
+This is useful for dashboards, telemetry, or audit overlays.
+
+```typescript
+pi.events.on("permissions:decision", (raw) => {
+  const event = raw as import("@gotgenes/pi-permission-system").PermissionDecisionEvent;
+  console.log(event.surface, event.result, event.resolution);
+  // e.g. "bash" "allow" "user_approved_for_session"
+});
+```
+
+### Payload Fields
+
+| Field            | Type                | Description                                                                               |
+| ---------------- | ------------------- | ----------------------------------------------------------------------------------------- |
+| `surface`        | `string`            | Permission surface (`"bash"`, `"read"`, `"mcp"`, `"skill"`, `"external_directory"`, etc.) |
+| `value`          | `string`            | Value evaluated (command, tool name, skill name, path)                                    |
+| `result`         | `"allow" \| "deny"` | Final outcome                                                                             |
+| `resolution`     | `string`            | How the outcome was reached (see table below)                                             |
+| `origin`         | `string \| null`    | Config scope that contributed the winning rule                                            |
+| `agentName`      | `string \| null`    | Active agent name when known                                                              |
+| `matchedPattern` | `string \| null`    | Pattern from the winning rule                                                             |
+
+### Resolution Values
+
+| Value                         | Meaning                                                              |
+| ----------------------------- | -------------------------------------------------------------------- |
+| `policy_allow`                | Config rule said allow — no prompt shown                             |
+| `policy_deny`                 | Config rule said deny — blocked immediately                          |
+| `session_approved`            | Covered by a session-level approval from earlier in the same session |
+| `infrastructure_auto_allowed` | Read of a Pi infrastructure path — auto-allowed                      |
+| `user_approved`               | User approved once via dialog                                        |
+| `user_approved_for_session`   | User approved for the rest of the session                            |
+| `user_denied`                 | User denied via dialog                                               |
+| `auto_approved`               | Yolo mode — approved automatically without dialog                    |
+| `confirmation_unavailable`    | State was `ask` but no UI was available — blocked                    |
+
+---
+
+## Ready Event
+
+The extension emits `permissions:ready` at `session_start`, right after the service is published — so a consumer reacting to it can immediately resolve `getPermissionsService()`.
+It fires once per `session_start` (including `/reload`).
+
+The payload is intentionally empty (`Record<string, never>`): the channel is a pure readiness signal.
+It carries no `protocolVersion` — the broadcast contract is defined by the published types plus package semver.
+
+```typescript
+pi.events.on("permissions:ready", () => {
+  void (async () => {
+    const { getPermissionsService } = await import(
+      "@gotgenes/pi-permission-system"
+    );
+    const permissions = getPermissionsService();
+    // The service is published just before this fires — resolve it now.
+  })();
+});
+```
