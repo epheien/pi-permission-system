@@ -3,6 +3,7 @@
   "version": "24.0.0",
   "description": "Permission enforcement extension for the Pi coding agent.",
   "type": "module",
+  "packageManager": "pnpm@11.5.2",
   "exports": {
     ".": {
       "types": "./dist/public.d.ts",
@@ -29,13 +30,13 @@
   "scripts": {
     "check": "tsc --noEmit",
     "build:types": "rollup -c rollup.dts.config.mjs",
-    "prepack": "npm run build:types",
+    "prepack": "pnpm run build:types",
     "gen:schema": "node --experimental-strip-types scripts/generate-permissions-schema.ts && biome format --write schemas/permissions.schema.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "verify:public-types": "bash scripts/verify-public-types.sh",
     "lint:md": "rumdl check *.md docs/**/*.md",
-    "lint": "biome check . && eslint . && npm run lint:md"
+    "lint": "biome check . && eslint . && pnpm run lint:md"
   },
   "keywords": [
     "pi-package",
