@@ -64,5 +64,7 @@ When a tool permission resolves to `ask`, the prompt is designed to be readable 
 Example edit approval prompt:
 
 ```text
-Current agent requested tool 'edit' for '.gitignore' (1 replacement: edit #1 replaces 5 lines with 2 lines). Allow this call?
+  Agent:  Current agent
+  Tool:   edit
+  Input:  for '.gitignore' (1 replacement: edit #1 replaces 5 lines with 2 lines)
 ```

@@ -29,7 +29,7 @@ export function formatBashExternalDirectoryAskPrompt(
   const subject = agentName ? `Agent '${agentName}'` : "Current agent";
   const rows: Array<[string, string]> = [
     ["Agent", subject],
-    ["Rule", `references path(s) outside working directory '${cwd}'`],
+    ["Rule", `external_directory '${cwd}'`],
   ];
   for (const { path, resolvedPath } of externalPaths) {
     rows.push(["Path", `${path}${resolvesToSuffix(resolvedPath)}`]);

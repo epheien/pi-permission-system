@@ -138,7 +138,7 @@ describe("formatAskPrompt", () => {
       makeFormatter(),
     );
     expect(result).toContain("git status");
-    expect(result).toContain("Allow this command?");
+    expect(result).toContain("$ git status");
   });
 
   test("formats bash prompt with matched pattern", () => {
@@ -159,7 +159,7 @@ describe("formatAskPrompt", () => {
       makeFormatter(),
     );
     expect(result).toBe(
-      `Current agent requested bash command 'rm -rf .' (full command: 'echo "hello" && rm -rf .'). Allow this command?`,
+      '  Agent:  Current agent\n\n$ echo "hello" && rm -rf .',
     );
   });
 
@@ -171,9 +171,7 @@ describe("formatAskPrompt", () => {
       makeFormatter(),
     );
     expect(result).not.toContain("full command:");
-    expect(result).toBe(
-      "Current agent requested bash command 'git push'. Allow this command?",
-    );
+    expect(result).toBe("  Agent:  Current agent\n\n$ git push");
   });
 
   test("suppresses full-command suffix when input is undefined", () => {
@@ -206,7 +204,7 @@ describe("formatAskPrompt", () => {
     expect(result).not.toContain("full command:");
   });
 
-  test("places full-command suffix after the qualifier and before the terminal sentence", () => {
+  test("places full-command suffix after the qualifier and before the $ command line", () => {
     const result = formatAskPrompt(
       toolResult("bash", { command: "rm -rf foo", matchedPattern: "rm *" }),
       undefined,
@@ -214,7 +212,7 @@ describe("formatAskPrompt", () => {
       makeFormatter(),
     );
     expect(result).toBe(
-      "Current agent requested bash command 'rm -rf foo' (matched 'rm *') (full command: 'cd /tmp && rm -rf foo'). Allow this command?",
+      "  Agent:  Current agent\n  Rule:   matched 'rm *'\n\n$ cd /tmp && rm -rf foo",
     );
   });
 
@@ -229,9 +227,8 @@ describe("formatAskPrompt", () => {
       undefined,
       makeFormatter(),
     );
-    expect(result).toContain(
-      "bash command 'rm -rf foo' (matched 'rm *', inside command substitution).",
-    );
+    expect(result).toContain("Context:  inside command substitution");
+    expect(result).toContain("$ rm -rf foo");
   });
 
   test("formats MCP prompt with target", () => {
@@ -241,8 +238,7 @@ describe("formatAskPrompt", () => {
       undefined,
       makeFormatter(),
     );
-    expect(result).toContain("server:query");
-    expect(result).toContain("Allow this call?");
+    expect(result).toBe("  Agent:  Current agent\n\nserver:query");
   });
 
   test("formats MCP prompt with matched pattern", () => {
@@ -262,9 +258,9 @@ describe("formatAskPrompt", () => {
       { tool: "exa:search", arguments: { query: "typescript" } },
       makeFormatter(makeMcpLookup('with query: "typescript"')),
     );
-    expect(result).toContain("exa:search");
-    expect(result).toContain('with query: "typescript"');
-    expect(result).toContain("Allow this call?");
+    expect(result).toBe(
+      '  Agent:  Current agent\n  Input:  with query: "typescript"\n\nexa:search',
+    );
   });
 
   test("MCP prompt is unchanged when the formatter returns undefined (no arguments)", () => {
@@ -277,9 +273,8 @@ describe("formatAskPrompt", () => {
       { tool: "exa:search" },
       makeFormatter(noArgsLookup),
     );
-    expect(result).toContain("exa:search");
+    expect(result).toBe("  Agent:  Current agent\n\nexa:search");
     expect(result).not.toMatch(/with /);
-    expect(result).toContain("Allow this call?");
   });
 
   test("MCP prompt is unchanged when no formatter is provided", () => {
@@ -287,9 +282,8 @@ describe("formatAskPrompt", () => {
       tool: "exa:search",
       arguments: { query: "test" },
     });
-    expect(result).toContain("exa:search");
+    expect(result).toBe("  Agent:  Current agent\n\nexa:search");
     expect(result).not.toMatch(/with /);
-    expect(result).toContain("Allow this call?");
   });
 
   test("includes real input preview for non-bash non-mcp tools", () => {
@@ -299,8 +293,8 @@ describe("formatAskPrompt", () => {
       { path: "/src/foo.ts" },
       makeFormatter(),
     );
+    expect(result).toContain("Tool:   read");
     expect(result).toContain("path '/src/foo.ts'");
-    expect(result).toContain("Allow this call?");
   });
 
   test("omits input suffix when formatter returns empty string for input", () => {
@@ -318,9 +312,8 @@ describe("formatAskPrompt", () => {
     const result = formatAskPrompt(toolResult("task"), undefined, {
       path: "/src",
     });
-    expect(result).toContain("task");
+    expect(result).toBe("  Agent:  Current agent\n  Tool:   task");
     expect(result).not.toContain("undefined");
-    expect(result).toContain("Allow this call?");
   });
 });
 

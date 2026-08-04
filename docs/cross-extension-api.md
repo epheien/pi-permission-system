@@ -156,13 +156,15 @@ Treat every field as untrusted: the agent can emit malformed or partial input, s
 
 ##### What your return value does
 
-The returned string is spliced into the middle of the prompt sentence:
+Your returned fragment is rendered as the `Input:` line of the prompt's markdown-style key/value block:
 
 ```text
-Agent 'Explore' requested tool 'deploy' <your fragment>. Allow this call?
+  Agent:  Current agent
+  Tool:   deploy
+  Input:  <your fragment>
 ```
 
-Return a short grammatical fragment that reads naturally in that slot — e.g. `"with target staging (3 services)"` or `"runs 2 commands"`, not a full sentence and not raw JSON.
+Return a short grammatical fragment that reads naturally on that `Input:` line — e.g. `"with target staging (3 services)"` or `"runs 2 commands"`, not a full sentence and not raw JSON.
 
 Return semantics:
 

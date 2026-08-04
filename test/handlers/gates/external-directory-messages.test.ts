@@ -45,7 +45,7 @@ describe("formatExternalDirectoryAskPrompt", () => {
       "/projects/my-app",
     );
     expect(result).toBe(
-      "Current agent requested tool 'read' for path 'demo-symlink-passwd' (resolves to '/etc/passwd') outside working directory '/projects/my-app'. Allow this external directory access?",
+      "  Agent:  Current agent\n  Tool:   read\n  Path:   demo-symlink-passwd (resolves to '/etc/passwd')\n  CWD:    /projects/my-app",
     );
   });
 

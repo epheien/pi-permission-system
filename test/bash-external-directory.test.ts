@@ -962,7 +962,7 @@ describe("formatBashExternalDirectoryAskPrompt", () => {
       "/projects/my-app",
     );
     expect(result).toBe(
-      "Current agent requested bash command 'cat demo-symlink-passwd /etc/hosts' which references path(s) outside working directory '/projects/my-app': demo-symlink-passwd (resolves to '/etc/passwd'), /etc/hosts. Allow this external directory access?",
+      "  Agent:  Current agent\n  Rule:   external_directory '/projects/my-app'\n  Path:   demo-symlink-passwd (resolves to '/etc/passwd')\n  Path:   /etc/hosts\n\n$ cat demo-symlink-passwd /etc/hosts",
     );
   });
 });
