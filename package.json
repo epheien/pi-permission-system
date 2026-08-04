@@ -56,12 +56,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/gotgenes/pi-packages.git",
-    "directory": "packages/pi-permission-system"
+    "url": "git+https://github.com/epheien/pi-permission-system.git"
   },
-  "homepage": "https://github.com/gotgenes/pi-packages/tree/main/packages/pi-permission-system#readme",
+  "homepage": "https://github.com/epheien/pi-permission-system#readme",
   "bugs": {
-    "url": "https://github.com/gotgenes/pi-packages/issues"
+    "url": "https://github.com/epheien/pi-permission-system/issues"
   },
   "engines": {
     "node": ">=22"
