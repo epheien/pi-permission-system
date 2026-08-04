@@ -2,6 +2,7 @@ import {
   type ExternalPathDisclosure,
   resolvesToSuffix,
 } from "#src/denial-messages";
+import { keyValueBlock } from "#src/permission-prompts";
 
 export function formatExternalDirectoryAskPrompt(
   toolName: string,
@@ -11,7 +12,12 @@ export function formatExternalDirectoryAskPrompt(
   agentName?: string,
 ): string {
   const subject = agentName ? `Agent '${agentName}'` : "Current agent";
-  return `${subject} requested tool '${toolName}' for path '${pathValue}'${resolvesToSuffix(resolvedPath)} outside working directory '${cwd}'. Allow this external directory access?`;
+  return keyValueBlock([
+    ["Agent", subject],
+    ["Tool", toolName],
+    ["Path", `${pathValue}${resolvesToSuffix(resolvedPath)}`],
+    ["CWD", cwd],
+  ]);
 }
 
 export function formatBashExternalDirectoryAskPrompt(
@@ -21,8 +27,12 @@ export function formatBashExternalDirectoryAskPrompt(
   agentName?: string,
 ): string {
   const subject = agentName ? `Agent '${agentName}'` : "Current agent";
-  const pathList = externalPaths
-    .map(({ path, resolvedPath }) => `${path}${resolvesToSuffix(resolvedPath)}`)
-    .join(", ");
-  return `${subject} requested bash command '${command}' which references path(s) outside working directory '${cwd}': ${pathList}. Allow this external directory access?`;
+  const rows: Array<[string, string]> = [
+    ["Agent", subject],
+    ["Rule", `references path(s) outside working directory '${cwd}'`],
+  ];
+  for (const { path, resolvedPath } of externalPaths) {
+    rows.push(["Path", `${path}${resolvesToSuffix(resolvedPath)}`]);
+  }
+  return `${keyValueBlock(rows)}\n\n$ ${command}`;
 }

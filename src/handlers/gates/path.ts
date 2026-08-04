@@ -4,6 +4,7 @@ import type { ScopedPermissionResolver } from "#src/permission-resolver";
 import { SessionApproval } from "#src/session-approval";
 import { deriveApprovalPattern } from "#src/session-rules";
 import type { ToolAccessExtractorLookup } from "#src/tool-access-extractor-registry";
+import { keyValueBlock } from "#src/permission-prompts";
 import type { GateDescriptor, GateResult } from "./descriptor";
 import { accessFactsFromPath } from "./helpers";
 import type { ToolCallContext } from "./types";
@@ -93,5 +94,9 @@ export function formatPathAskPrompt(
   agentName?: string,
 ): string {
   const subject = agentName ? `Agent '${agentName}'` : "Current agent";
-  return `${subject} requested tool '${toolName}' for path '${pathValue}'. Allow this path access?`;
+  return keyValueBlock([
+    ["Agent", subject],
+    ["Tool", toolName],
+    ["Path", pathValue],
+  ]);
 }

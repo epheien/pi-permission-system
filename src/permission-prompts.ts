@@ -1,5 +1,5 @@
 import { classifyToolKind, isMcpCheck } from "./access-intent/tool-kind";
-import { matchQualifier } from "./denial-messages";
+import { describeBashCommandContext } from "./denial-messages";
 import type { SkillPromptEntry } from "./skill-prompt-sanitizer";
 import type { ToolPreviewFormatter } from "./tool-preview-formatter";
 import type { PermissionCheckResult } from "./types";
@@ -37,41 +37,47 @@ export function formatAskPrompt(
   formatter?: ToolPreviewFormatter,
 ): string {
   const subject = agentName ? `Agent '${agentName}'` : "Current agent";
+  const rows: Array<[string, string]> = [["Agent", subject]];
 
   if (classifyToolKind(result.toolName) === "bash") {
+    if (result.matchedPattern) {
+      rows.push(["Rule", `matched '${result.matchedPattern}'`]);
+    }
+    const context = describeBashCommandContext(result.commandContext);
+    if (context) {
+      rows.push(["Context", `inside ${context}`]);
+    }
     const subCommand = result.command ?? "";
-    const qualifier = matchQualifier(
-      result.matchedPattern,
-      result.commandContext,
-    );
-    const qualifierInfo = qualifier ? ` ${qualifier}` : "";
-    const fullCommand = getNonEmptyString(toRecord(input).command);
-    const fullCommandInfo =
-      fullCommand && fullCommand !== subCommand
-        ? ` (full command: '${fullCommand}')`
-        : "";
-    return `${subject} requested bash command '${subCommand}'${qualifierInfo}${fullCommandInfo}. Allow this command?`;
+    const fullCommand =
+      getNonEmptyString(toRecord(input).command) ?? subCommand;
+    const block = keyValueBlock(rows);
+    return fullCommand ? `${block}\n\n$ ${fullCommand}` : block;
   }
 
   if (isMcpCheck(result) && result.target) {
-    const patternInfo = result.matchedPattern
-      ? ` (matched '${result.matchedPattern}')`
-      : "";
-    const mcpPreview = formatter
+    if (result.matchedPattern) {
+      rows.push(["Rule", `matched '${result.matchedPattern}'`]);
+    }
+    const preview = formatter
       ? formatter.formatToolInputForPrompt("mcp", input)
       : "";
-    const previewSuffix = mcpPreview ? ` ${mcpPreview}` : "";
-    return `${subject} requested MCP target '${result.target}'${patternInfo}${previewSuffix}. Allow this call?`;
+    if (preview) {
+      rows.push(["Input", preview]);
+    }
+    return `${keyValueBlock(rows)}\n\n${result.target}`;
   }
 
-  const patternInfo = result.matchedPattern
-    ? ` (matched '${result.matchedPattern}')`
-    : "";
-  const inputPreview = formatter
+  if (result.matchedPattern) {
+    rows.push(["Rule", `matched '${result.matchedPattern}'`]);
+  }
+  rows.push(["Tool", result.toolName]);
+  const preview = formatter
     ? formatter.formatToolInputForPrompt(result.toolName, input)
     : "";
-  const inputSuffix = inputPreview ? ` ${inputPreview}` : "";
-  return `${subject} requested tool '${result.toolName}'${patternInfo}${inputSuffix}. Allow this call?`;
+  if (preview) {
+    rows.push(["Input", preview]);
+  }
+  return keyValueBlock(rows);
 }
 
 export function formatSkillAskPrompt(
@@ -79,7 +85,10 @@ export function formatSkillAskPrompt(
   agentName?: string,
 ): string {
   const subject = agentName ? `Agent '${agentName}'` : "Current agent";
-  return `${subject} requested skill '${skillName}'. Allow loading this skill?`;
+  return keyValueBlock([
+    ["Agent", subject],
+    ["Skill", skillName],
+  ]);
 }
 
 export function formatSkillPathAskPrompt(
@@ -88,7 +97,27 @@ export function formatSkillPathAskPrompt(
   agentName?: string,
 ): string {
   const subject = agentName ? `Agent '${agentName}'` : "Current agent";
-  return `${subject} requested access to skill '${skill.name}' via '${readPath}'. Allow this read?`;
+  return keyValueBlock([
+    ["Agent", subject],
+    ["Skill", skill.name],
+    ["Path", readPath],
+  ]);
+}
+
+/**
+ * Render structured key/value rows as an aligned, markdown-style block.
+ *
+ * Rows are emitted as `Label: value` with values aligned to the widest label,
+ * which reads cleanly in narrow terminals and survives line wrapping.
+ */
+export function keyValueBlock(rows: Array<[string, string]>): string {
+  if (rows.length === 0) {
+    return "";
+  }
+  const width = Math.max(...rows.map(([label]) => label.length));
+  return rows
+    .map(([label, value]) => `  ${`${label}:`.padEnd(width + 3)}${value}`)
+    .join("\n");
 }
 
 // formatSkillPathDenyReason has been moved to denial-messages.ts.
