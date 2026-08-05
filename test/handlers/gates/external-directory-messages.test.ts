@@ -11,75 +11,79 @@ import {
 // Their behavior is tested in denial-messages.test.ts.
 
 describe("formatExternalDirectoryAskPrompt", () => {
-  test("uses 'Current agent' when no agent name provided", () => {
-    const result = formatExternalDirectoryAskPrompt(
-      "read",
-      "/etc/passwd",
-      undefined,
-      "/projects/my-app",
+  test("headlines the external directory and lists the granted pattern", () => {
+    const result = formatExternalDirectoryAskPrompt("/etc/passwd", undefined, [
+      "/etc/*",
+    ]);
+    expect(result).toBe(
+      "Access external directory /etc/passwd\n\nPatterns\n- /etc/*",
     );
-    expect(result).toContain("Current agent");
-    expect(result).toContain("read");
-    expect(result).toContain("/etc/passwd");
-    expect(result).toContain("/projects/my-app");
-  });
-
-  test("uses agent name when provided", () => {
-    const result = formatExternalDirectoryAskPrompt(
-      "write",
-      "/tmp/out.txt",
-      undefined,
-      "/projects/my-app",
-      "my-agent",
-    );
-    expect(result).toContain("Agent 'my-agent'");
-    expect(result).toContain("write");
-    expect(result).toContain("/tmp/out.txt");
   });
 
   test("discloses the resolved path when it differs from the typed path", () => {
     const result = formatExternalDirectoryAskPrompt(
-      "read",
       "demo-symlink-passwd",
       "/etc/passwd",
-      "/projects/my-app",
+      ["/etc/*"],
     );
     expect(result).toBe(
-      "  Agent:  Current agent\n  Tool:   read\n  Path:   demo-symlink-passwd (resolves to '/etc/passwd')\n  CWD:    /projects/my-app",
+      "Access external directory demo-symlink-passwd (resolves to '/etc/passwd')\n\nPatterns\n- /etc/*",
     );
   });
 
   test("omits the disclosure when resolvedPath is undefined", () => {
-    const result = formatExternalDirectoryAskPrompt(
-      "read",
-      "/etc/passwd",
-      undefined,
-      "/projects/my-app",
-    );
+    const result = formatExternalDirectoryAskPrompt("/etc/passwd", undefined, [
+      "/etc/*",
+    ]);
     expect(result).not.toContain("resolves to");
+  });
+
+  test("does not leak tool name, cwd, or agent into the ask message", () => {
+    const result = formatExternalDirectoryAskPrompt("/tmp/out.txt", undefined, [
+      "/tmp/*",
+    ]);
+    expect(result).not.toContain("write");
+    expect(result).not.toContain("/projects/my-app");
+    expect(result).not.toContain("Agent");
   });
 });
 
 describe("formatBashExternalDirectoryAskPrompt", () => {
-  test("includes command, paths, cwd, and agent name", () => {
+  test("headlines each external path and lists the granted patterns", () => {
     const result = formatBashExternalDirectoryAskPrompt(
-      "cat /etc/passwd",
-      [{ path: "/etc/passwd" }],
-      "/projects/my-app",
-      "my-agent",
+      [{ path: "/etc/hosts" }, { path: "/var/log/syslog" }],
+      ["/etc/*", "/var/log/*"],
     );
-    expect(result).toContain("Agent 'my-agent'");
-    expect(result).toContain("cat /etc/passwd");
-    expect(result).toContain("/etc/passwd");
-    expect(result).toContain("/projects/my-app");
+    expect(result).toBe(
+      "Access external directory /etc/hosts\n" +
+        "Access external directory /var/log/syslog\n\n" +
+        "Patterns\n- /etc/*\n- /var/log/*",
+    );
   });
 
-  test("uses 'Current agent' when no agent name provided", () => {
+  test("excludes the bash command and contextual rows from the ask message", () => {
     const result = formatBashExternalDirectoryAskPrompt(
-      "ls /tmp",
-      [{ path: "/tmp" }],
-      "/projects/my-app",
+      [{ path: "/etc/hosts" }],
+      ["/etc/*"],
     );
-    expect(result).toContain("Current agent");
+    expect(result).toContain("Access external directory /etc/hosts");
+    expect(result).not.toContain("cat");
+    expect(result).not.toContain("Current agent");
+    expect(result).not.toContain("external_directory");
+  });
+
+  test("discloses resolved targets and dedupes repeated patterns", () => {
+    const result = formatBashExternalDirectoryAskPrompt(
+      [
+        { path: "demo-symlink-passwd", resolvedPath: "/etc/passwd" },
+        { path: "/etc/hosts" },
+      ],
+      ["/etc/*", "/etc/*"],
+    );
+    expect(result).toBe(
+      "Access external directory demo-symlink-passwd (resolves to '/etc/passwd')\n" +
+        "Access external directory /etc/hosts\n\n" +
+        "Patterns\n- /etc/*",
+    );
   });
 });

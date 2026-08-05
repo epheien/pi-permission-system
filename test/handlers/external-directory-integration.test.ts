@@ -47,13 +47,10 @@ describe("external_directory helper regression guard", () => {
   it("formatExternalDirectoryAskPrompt is a callable function", () => {
     expect(typeof formatExternalDirectoryAskPrompt).toBe("function");
     expect(
-      formatExternalDirectoryAskPrompt(
-        "read",
-        "/outside/file",
-        undefined,
-        "/project",
-      ),
-    ).toContain("/outside/file");
+      formatExternalDirectoryAskPrompt("/outside/file", undefined, [
+        "/outside/*",
+      ]),
+    ).toContain("Access external directory /outside/file");
   });
 
   it("EXTENSION_TAG is the expected value", () => {

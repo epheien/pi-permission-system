@@ -69,12 +69,13 @@ export function describeExternalDirectoryGate(
 
   // ── Build descriptor for permission check ───────────────────────────────
   const resolvedAlias = accessPath.resolvedAlias();
+  // Derived before the ask message so the opencode-style dialog can display
+  // exactly the wildcard pattern a "for this session" grant would record.
+  const pattern = deriveApprovalPattern(accessPath.value());
   const extDirMessage = formatExternalDirectoryAskPrompt(
-    tcc.toolName,
     externalDirectoryPath,
     resolvedAlias,
-    tcc.cwd,
-    tcc.agentName ?? undefined,
+    [pattern],
   );
 
   // The runner consumes this preCheck and skips its own resolve.
@@ -83,7 +84,6 @@ export function describeExternalDirectoryGate(
     resolver,
     tcc.agentName ?? undefined,
   );
-  const pattern = deriveApprovalPattern(accessPath.value());
 
   return {
     surface: "external_directory",

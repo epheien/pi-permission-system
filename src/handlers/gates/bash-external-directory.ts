@@ -76,14 +76,14 @@ export function describeBashExternalDirectoryGate(
     resolvedPath: path.resolvedAlias(),
   }));
 
-  const bashExtMessage = formatBashExternalDirectoryAskPrompt(
-    command,
-    disclosures,
-    tcc.cwd,
-    tcc.agentName ?? undefined,
-  );
-
+  // Derived before the ask message so the opencode-style dialog can display
+  // exactly the wildcard patterns a "for this session" grant would record.
   const patterns = uncoveredPaths.map((p) => deriveApprovalPattern(p));
+
+  const bashExtMessage = formatBashExternalDirectoryAskPrompt(
+    disclosures,
+    patterns,
+  );
 
   return {
     surface: "external_directory",

@@ -921,48 +921,53 @@ describe("extractExternalPathsFromBashCommand", () => {
 });
 
 describe("formatBashExternalDirectoryAskPrompt", () => {
-  test("includes command, external paths, and CWD", () => {
+  test("headlines each external path and lists the granted patterns", () => {
     const result = formatBashExternalDirectoryAskPrompt(
-      "cat /etc/hosts",
-      [{ path: "/etc/hosts" }],
-      "/projects/my-app",
-    );
-    expect(result).toContain("cat /etc/hosts");
-    expect(result).toContain("/etc/hosts");
-    expect(result).toContain("/projects/my-app");
-  });
-
-  test("includes agent name when provided", () => {
-    const result = formatBashExternalDirectoryAskPrompt(
-      "cat /etc/hosts",
-      [{ path: "/etc/hosts" }],
-      "/projects/my-app",
-      "my-agent",
-    );
-    expect(result).toContain("my-agent");
-  });
-
-  test("shows multiple external paths", () => {
-    const result = formatBashExternalDirectoryAskPrompt(
-      "diff /etc/hosts /var/log/syslog",
       [{ path: "/etc/hosts" }, { path: "/var/log/syslog" }],
-      "/projects/my-app",
+      ["/etc/*", "/var/log/*"],
+    );
+    expect(result).toBe(
+      "Access external directory /etc/hosts\n" +
+        "Access external directory /var/log/syslog\n\n" +
+        "Patterns\n- /etc/*\n- /var/log/*",
+    );
+  });
+
+  test("excludes the bash command from the ask message", () => {
+    const result = formatBashExternalDirectoryAskPrompt(
+      [{ path: "/etc/hosts" }],
+      ["/etc/*"],
+    );
+    expect(result).toContain("Access external directory /etc/hosts");
+    expect(result).not.toContain("cat");
+  });
+
+  test("shows multiple external paths with deduped patterns", () => {
+    const result = formatBashExternalDirectoryAskPrompt(
+      [{ path: "/etc/hosts" }, { path: "/etc/passwd" }],
+      ["/etc/*", "/etc/*"],
     );
     expect(result).toContain("/etc/hosts");
-    expect(result).toContain("/var/log/syslog");
+    expect(result).toContain("/etc/passwd");
+    expect(result).toBe(
+      "Access external directory /etc/hosts\n" +
+        "Access external directory /etc/passwd\n\n" +
+        "Patterns\n- /etc/*",
+    );
   });
 
   test("discloses the resolved target per path when it differs", () => {
     const result = formatBashExternalDirectoryAskPrompt(
-      "cat demo-symlink-passwd /etc/hosts",
       [
         { path: "demo-symlink-passwd", resolvedPath: "/etc/passwd" },
         { path: "/etc/hosts" },
       ],
-      "/projects/my-app",
+      ["/etc/*"],
     );
     expect(result).toBe(
-      "  Agent:  Current agent\n  Rule:   external_directory '/projects/my-app'\n  Path:   demo-symlink-passwd (resolves to '/etc/passwd')\n  Path:   /etc/hosts\n\n$ cat demo-symlink-passwd /etc/hosts",
+      "Access external directory demo-symlink-passwd (resolves to '/etc/passwd')\n" +
+        "Access external directory /etc/hosts\n\n" +
+        "Patterns\n- /etc/*",
     );
   });
 });
