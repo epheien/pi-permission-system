@@ -16,7 +16,7 @@ export interface PermissionSystemExtensionConfig {
   debugLog: boolean;
   permissionReviewLog: boolean;
   yoloMode: boolean;
-  /** Require a confirming second press of a decision hotkey in the inline TUI dialog. Defaults to true. */
+  /** Require a confirming second press of a decision hotkey in the overlay TUI dialog. Defaults to true. */
   doublePressToConfirm: boolean;
   /** Additional directories to auto-allow for reads as Pi infrastructure. */
   piInfrastructureReadPaths?: string[];

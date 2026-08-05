@@ -19,9 +19,9 @@ import type { PromptPermissionDetails } from "./permission-prompter";
 
 /** Dependencies required by {@link LocalUserAuthorizer}. */
 export interface LocalUserAuthorizerDeps {
-  /** The active session's UI surface (select/input plus the inline `custom` dialog). */
+  /** The active session's UI surface (select/input plus the overlay `custom` dialog). */
   ui: PermissionPromptUi;
-  /** The session run mode; the dispatcher renders the inline dialog only in `"tui"`. */
+  /** The session run mode; the dispatcher renders the overlay dialog only in `"tui"`. */
   mode: ExtensionContext["mode"];
   /** Event bus used for the `permissions:ui_prompt` broadcast. */
   events: PermissionEventBus;

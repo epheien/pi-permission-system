@@ -24,16 +24,16 @@ import {
 } from "#src/authority/permission-prompt-decision";
 
 /**
- * Inline `ctx.ui.custom` permission dialog for TUI sessions.
+ * Overlay `ctx.ui.custom` permission dialog for TUI sessions.
  *
  * All interaction logic lives in the pure {@link reducePrompt} model; this
  * module is the thin adapter that renders the model's state to lines, maps raw
  * keystrokes to {@link PromptEvent}s, and resolves the `ctx.ui.custom` promise
  * with the committed {@link PermissionPromptDecision}. The component renders
- * inline (never as an overlay).
+ * as a bottom-anchored overlay (mirroring the show-diff dialog), never inline.
  */
 
-/** The subset of the session UI surface the inline dialog needs. */
+/** The subset of the session UI surface the overlay dialog needs. */
 export type PermissionPromptUi = Pick<
   ExtensionUIContext,
   "select" | "input" | "custom" | "getToolsExpanded" | "setToolsExpanded"
@@ -55,11 +55,11 @@ export interface PromptPreferences {
 }
 
 /**
- * Route a permission ask to the inline keybind dialog in TUI mode, or the
+ * Route a permission ask to the overlay keybind dialog in TUI mode, or the
  * `select()`/`input()` flow otherwise (RPC / frontend — the #519 constraint).
  *
  * The single entry the `LocalUserAuthorizer` calls; keeps the mode dispatch in
- * one place so the fallback and the inline component never both render.
+ * one place so the fallback and the overlay component never both render.
  */
 export function requestPermissionDecision(
   view: PermissionPromptView,
@@ -79,6 +79,12 @@ interface PromptTheme {
 }
 
 const DEFAULT_SESSION_LABEL = "Yes, for this session";
+
+/** Bottom-anchored, full-width overlay framing for the permission dialog (mirrors show-diff). */
+const PROMPT_OVERLAY_OPTIONS = {
+  anchor: "bottom-center",
+  width: "100%",
+} as const;
 
 const OPTION_LABELS: Record<PromptKey, string> = {
   y: "Yes",
@@ -101,8 +107,8 @@ export function presentInlinePermissionPrompt(
     sessionScope: options?.sessionScope,
   };
   return view.ui.custom<PermissionPromptDecision>(
-    (tui, theme, keybindings, done) =>
-      new PermissionPromptComponent(
+    (tui, theme, keybindings, done) => {
+      const prompt = new PermissionPromptComponent(
         theme,
         config,
         title,
@@ -112,8 +118,15 @@ export function presentInlinePermissionPrompt(
           tui.requestRender();
         },
         done,
-      ),
-    { overlay: false },
+      );
+      const framed = new PanelFrame(prompt, (text) => theme.fg("accent", text));
+      return {
+        render: (width) => framed.render(width),
+        invalidate: () => framed.invalidate(),
+        handleInput: (data) => prompt.handleInput(data),
+      };
+    },
+    { overlay: true, overlayOptions: PROMPT_OVERLAY_OPTIONS },
   );
 }
 
@@ -323,6 +336,42 @@ function fitToWidth(lines: string[], width: number): string[] {
       truncateToWidth(wrapped, width),
     ),
   );
+}
+
+/**
+ * Thin box frame drawn around a child component, mirroring show-diff's
+ * `BorderFrame`: a top/bottom rule and side rails. The child renders at
+ * `width - 2` and each resulting line is re-padded to the full width, so the
+ * framed output never exceeds `width`. Falls back to the bare child when the
+ * available width is too narrow to frame.
+ */
+class PanelFrame {
+  constructor(
+    private readonly child: {
+      render(width: number): string[];
+      invalidate(): void;
+    },
+    private readonly borderColor: (text: string) => string,
+  ) {}
+
+  invalidate(): void {
+    this.child.invalidate();
+  }
+
+  render(width: number): string[] {
+    if (width <= 4) {
+      return this.child.render(width);
+    }
+    const innerWidth = Math.max(1, width - 2);
+    const rule = "─".repeat(innerWidth);
+    const top = this.borderColor(`┌${rule}┐`);
+    const bottom = this.borderColor(`└${rule}┘`);
+    const body = this.child.render(innerWidth).map((line) => {
+      const safe = truncateToWidth(line, innerWidth, "", true);
+      return this.borderColor("│") + safe + this.borderColor("│");
+    });
+    return [top, ...body, bottom];
+  }
 }
 
 function isPrintable(data: string): boolean {

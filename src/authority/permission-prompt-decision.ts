@@ -6,7 +6,7 @@ import {
 } from "#src/authority/permission-dialog";
 
 /**
- * Pure decision model for the inline keybind permission dialog.
+ * Pure decision model for the overlay keybind permission dialog.
  *
  * The interaction logic — which hotkey produces which decision, double-press
  * arming, step transitions, and reason validation — lives here with no SDK or

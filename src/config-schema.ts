@@ -182,9 +182,9 @@ export const unifiedConfigSchema = z
     }),
     doublePressToConfirm: z.boolean().optional().meta({
       description:
-        "Require a confirming second press of a decision hotkey in the inline permission dialog. Applies to TUI sessions only.",
+        "Require a confirming second press of a decision hotkey in the overlay permission dialog. Applies to TUI sessions only.",
       markdownDescription:
-        "Require a confirming second press of a decision hotkey (`y`/`s`/`n`/`r`) in the inline permission dialog before it commits — the first press arms the action and shows a `Press y again to approve.` hint.\n\nApplies to interactive **TUI** sessions only; the non-TUI (RPC/frontend) prompt keeps its single-select flow. Set to `false` to commit decisions on the first hotkey press.",
+        "Require a confirming second press of a decision hotkey (`y`/`s`/`n`/`r`) in the overlay permission dialog before it commits — the first press arms the action and shows a `Press y again to approve.` hint.\n\nApplies to interactive **TUI** sessions only; the non-TUI (RPC/frontend) prompt keeps its single-select flow. Set to `false` to commit decisions on the first hotkey press.",
       default: true,
     }),
     toolInputPreviewMaxLength: z.number().int().min(1).optional().meta({

@@ -104,20 +104,30 @@ async function runPrompt(
 // ── Tests ─────────────────────────────────────────────────────────────────
 
 describe("presentInlinePermissionPrompt", () => {
-  it("renders inline (not as an overlay) with the message and hotkey labels", () => {
+  it("renders as a bottom-anchored overlay (not inline) with the message and hotkey labels", () => {
     const { view, captured } = makeFakeView(true);
     void presentInlinePermissionPrompt(
       view,
       "Permission Required",
       "Allow read of secret.txt?",
     );
-    expect(captured.options).toEqual({ overlay: false });
-    const text = captured.component?.render(80).join("\n") ?? "";
+    expect(captured.options).toEqual({
+      overlay: true,
+      overlayOptions: {
+        anchor: "bottom-center",
+        width: "100%",
+      },
+    });
+    const rendered = captured.component?.render(80) ?? [];
+    const text = rendered.join("\n");
     expect(text).toContain("Allow read of secret.txt?");
     expect(text).toContain("Yes");
     expect(text).toContain("No, provide reason");
     expect(text).toContain("y");
     expect(text).toContain("r");
+    // Framed like the show-diff dialog: border lines wrap the content.
+    expect(rendered[0]).toContain("┌");
+    expect(rendered[rendered.length - 1]).toContain("└");
   });
 
   it("clips every rendered line to the terminal width", () => {
@@ -133,6 +143,32 @@ describe("presentInlinePermissionPrompt", () => {
     expect(lines.length).toBeGreaterThan(0);
     for (const line of lines) {
       expect(visibleWidth(line)).toBeLessThanOrEqual(width);
+    }
+  });
+
+  it("frames every line at exactly the terminal width", () => {
+    const { view, captured } = makeFakeView(true);
+    void presentInlinePermissionPrompt(view, "Permission Required", "Allow?");
+    const width = 60;
+    const lines = captured.component?.render(width) ?? [];
+    expect(lines[0]).toContain("┌");
+    expect(lines[lines.length - 1]).toContain("└");
+    for (const line of lines) {
+      expect(visibleWidth(line)).toBe(width);
+    }
+  });
+
+  it("renders the bare dialog when the available width is too narrow to frame", () => {
+    const { view, captured } = makeFakeView(true);
+    void presentInlinePermissionPrompt(view, "Permission Required", "Allow?");
+    // A crafted overlay surface can shrink below the frameable threshold;
+    // the frame falls back to the bare dialog (no border chars) there.
+    const lines = captured.component?.render(3) ?? [];
+    expect(lines.length).toBeGreaterThan(0);
+    for (const line of lines) {
+      expect(visibleWidth(line)).toBeLessThanOrEqual(3);
+      expect(line).not.toContain("┌");
+      expect(line).not.toContain("└");
     }
   });
 

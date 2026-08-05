@@ -103,7 +103,7 @@ This clamp is deny-preserving and, like `yoloMode`, applied at composition; when
 | `debugLog`                  | `false` | Enables verbose diagnostic logging to `logs/pi-permission-system-debug.jsonl`                                                                                                                      |
 | `permissionReviewLog`       | `true`  | Enables the permission request/denial review log at `logs/pi-permission-system-permission-review.jsonl`. Records bash command strings verbatim — see [Log file sensitivity](#log-file-sensitivity) |
 | `yoloMode`                  | `false` | Auto-approves `ask` results instead of prompting when yolo mode is enabled                                                                                                                         |
-| `doublePressToConfirm`      | `true`  | Requires a confirming second press of a decision hotkey in the inline TUI dialog (see below). TUI sessions only; set to `false` for single-press.                                                  |
+| `doublePressToConfirm`      | `true`  | Requires a confirming second press of a decision hotkey in the overlay TUI dialog (see below). TUI sessions only; set to `false` for single-press.                                                  |
 | `toolInputPreviewMaxLength` | `200`   | Max characters of inline JSON shown in permission prompts for tool inputs. Omit to use the default. Set to a large value to disable truncation.                                                    |
 | `toolTextSummaryMaxLength`  | `80`    | Max characters of inline pattern/path summaries (grep patterns, find globs, ls paths) in permission prompts. Omit to use the default.                                                              |
 | `piInfrastructureReadPaths` | `[]`    | Extra directories to auto-allow for reads, bypassing the `external_directory` gate. Supports `~`/`$HOME` expansion and wildcard patterns (`*`, `?`).                                               |
@@ -112,9 +112,9 @@ This clamp is deny-preserving and, like `yoloMode`, applied at composition; when
 Both logs write to `~/.pi/agent/extensions/pi-permission-system/logs/`.
 No debug output is printed to the terminal.
 
-### Inline permission dialog (TUI)
+### Overlay permission dialog (TUI)
 
-In an interactive **TUI** session, an `ask` decision opens an inline keybind dialog with one-key shortcuts:
+In an interactive **TUI** session, an `ask` decision opens a bottom-anchored overlay keybind dialog (framed like the show-diff dialog) with one-key shortcuts:
 
 | Key | Action                                                            |
 | --- | ----------------------------------------------------------------- |
