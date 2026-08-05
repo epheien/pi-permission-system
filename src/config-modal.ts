@@ -4,14 +4,13 @@ import {
   getSettingsListTheme,
 } from "@earendil-works/pi-coding-agent";
 import { type SettingItem, SettingsList } from "@earendil-works/pi-tui";
-import { PanelFrame } from "#src/ui/panel-frame";
-
 import type { CommandConfigStore } from "./config-store";
 import {
   DEFAULT_EXTENSION_CONFIG,
   type PermissionSystemExtensionConfig,
 } from "./extension-config";
 import type { Ruleset } from "./rule";
+import { PanelFrame } from "./ui/panel-frame";
 
 interface PermissionSystemConfigController {
   config: CommandConfigStore;

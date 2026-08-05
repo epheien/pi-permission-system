@@ -12,6 +12,12 @@ import {
 } from "#src/extension-config";
 import type { Rule, Ruleset } from "#src/rule";
 
+/** Records the mocked SettingsList's forwarded interaction calls for the modal tests. */
+const settingsListSpy = vi.hoisted(() => ({
+  handleInputCalls: [] as string[],
+  invalidateCalls: 0,
+}));
+
 vi.mock("@earendil-works/pi-coding-agent", () => ({
   getSettingsListTheme: () => ({}),
 }));
@@ -22,12 +28,16 @@ vi.mock("@earendil-works/pi-tui", async (importOriginal) => {
   return {
     ...actual,
     SettingsList: class {
-      handleInput(): void {}
+      handleInput(data: string): void {
+        settingsListSpy.handleInputCalls.push(data);
+      }
       updateValue(): void {}
       render(): string[] {
         return ["YOLO mode            on", "Debug logging        off"];
       }
-      invalidate(): void {}
+      invalidate(): void {
+        settingsListSpy.invalidateCalls += 1;
+      }
     },
   };
 });
@@ -364,7 +374,11 @@ test("settings modal renders a box frame around the settings list", async () => 
 
     const theme = { fg: (_color: string, text: string) => text };
     const component = (
-      renderer as (...args: unknown[]) => { render(width: number): string[] }
+      renderer as (...args: unknown[]) => {
+        render(width: number): string[];
+        invalidate(): void;
+        handleInput(data: string): void;
+      }
     )({ requestRender: () => {} }, theme, {}, () => {});
     const lines = component.render(40);
 
@@ -377,6 +391,17 @@ test("settings modal renders a box frame around the settings list", async () => 
       expect(line.startsWith("│")).toBe(true);
       expect(line.endsWith("│")).toBe(true);
     }
+
+    // handleInput must reach the SettingsList, otherwise keys are dead
+    // while the modal holds focus.
+    settingsListSpy.handleInputCalls.length = 0;
+    component.handleInput("\u001b[B");
+    expect(settingsListSpy.handleInputCalls).toEqual(["\u001b[B"]);
+
+    // invalidate is forwarded so the SettingsList can bust cached output.
+    settingsListSpy.invalidateCalls = 0;
+    component.invalidate();
+    expect(settingsListSpy.invalidateCalls).toBe(1);
   } finally {
     rmSync(baseDir, { recursive: true, force: true });
   }
