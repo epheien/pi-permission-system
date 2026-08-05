@@ -50,6 +50,14 @@ function gateUnderTest(
 
 // ── tests ────────────────────��────────────────────────────────────��────────
 
+/** Extract the `- <pattern>` lines from an opencode-style ask message. */
+function patternsInMessage(message: string): string[] {
+  return message
+    .split("\n")
+    .filter((line) => line.startsWith("- "))
+    .map((line) => line.slice(2));
+}
+
 describe("describeExternalDirectoryGate", () => {
   it("returns null when tool is not path-bearing", () => {
     const result = gateUnderTest(
@@ -190,6 +198,20 @@ describe("describeExternalDirectoryGate", () => {
     expect(result.sessionApproval).toBeDefined();
     expect(result.sessionApproval?.surface).toBe("external_directory");
     expect(result.sessionApproval?.representativePattern).toBeDefined();
+  });
+
+  it("ask message Patterns mirror the sessionApproval pattern (display == grant)", () => {
+    const result = gateUnderTest(
+      makeTcc({ input: { path: "/outside/project/file.ts" } }),
+      ["/test/agent"],
+    ) as GateDescriptor;
+    if (!result.sessionApproval) return;
+    const messagePatterns = patternsInMessage(result.promptDetails.message);
+    // The dialog shows exactly the wildcard pattern a "for this session"
+    // grant records — the display==grant invariant of the opencode-style ask.
+    expect(new Set(messagePatterns)).toEqual(
+      new Set(result.sessionApproval.patterns),
+    );
   });
 
   it("denialContext contains the external path and cwd", () => {

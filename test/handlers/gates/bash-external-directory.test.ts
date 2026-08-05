@@ -49,6 +49,14 @@ function intentValues(intent: AccessIntent): readonly string[] {
   return [];
 }
 
+/** Extract the `- <pattern>` lines from an opencode-style ask message. */
+function patternsInMessage(message: string): string[] {
+  return message
+    .split("\n")
+    .filter((line) => line.startsWith("- "))
+    .map((line) => line.slice(2));
+}
+
 /**
  * Mirror the handler's parse-once derivation: parse the bash command into a
  * shared `BashProgram` and inject it, exactly as `permission-gate-handler.ts`
@@ -144,6 +152,23 @@ describe("describeBashExternalDirectoryGate", () => {
     expect(desc.sessionApproval).toBeDefined();
     if (!desc.sessionApproval) return;
     expect(desc.sessionApproval.patterns.length).toBeGreaterThan(0);
+  });
+
+  it("ask message Patterns mirror the sessionApproval patterns (display == grant)", async () => {
+    const result = await describeGate(
+      makeTcc({ input: { command: "diff /outside/a.ts /outside/b.ts" } }),
+      makeResolver(makeCheckResult("ask")),
+    );
+    expect(isGateDescriptor(result)).toBe(true);
+    const desc = result as GateDescriptor;
+    if (!desc.sessionApproval) return;
+    const messagePatterns = patternsInMessage(desc.promptDetails.message);
+    const granted = desc.sessionApproval.patterns;
+    expect(granted.length).toBeGreaterThan(0);
+    // The dialog's Patterns section shows exactly what a "for this session"
+    // grant records (deduped — both files live in /outside, so both grant
+    // entries are /outside/*). This is the display==grant invariant (#review).
+    expect(new Set(messagePatterns)).toEqual(new Set(granted));
   });
 
   it("returns GateBypass when all external paths are config-level allowed", async () => {

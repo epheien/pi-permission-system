@@ -22,9 +22,14 @@ function externalDirectoryLine(
  *
  * Deduplicates — several external paths can share one parent-glob (e.g. two
  * files in `/etc` both yield `/etc/*`), and showing it once is enough.
+ * Returns `""` when there are no patterns, so an empty grant records no
+ * stray `Patterns` header in the ask message.
  */
 function patternsSection(patterns: string[]): string {
   const unique = [...new Set(patterns)];
+  if (unique.length === 0) {
+    return "";
+  }
   return `${PATTERNS_HEADER}\n${unique.map((pattern) => `- ${pattern}`).join("\n")}`;
 }
 
@@ -44,7 +49,9 @@ export function formatExternalDirectoryAskPrompt(
   resolvedPath: string | undefined,
   patterns: string[],
 ): string {
-  return `${externalDirectoryLine(pathValue, resolvedPath)}\n\n${patternsSection(patterns)}`;
+  const section = patternsSection(patterns);
+  const headline = externalDirectoryLine(pathValue, resolvedPath);
+  return section ? `${headline}\n\n${section}` : headline;
 }
 
 /**
@@ -63,5 +70,9 @@ export function formatBashExternalDirectoryAskPrompt(
   const lines = externalPaths.map(({ path, resolvedPath }) =>
     externalDirectoryLine(path, resolvedPath),
   );
-  return `${lines.join("\n")}\n\n${patternsSection(patterns)}`;
+  const section = patternsSection(patterns);
+  if (lines.length === 0) {
+    return section;
+  }
+  return `${lines.join("\n")}${section ? `\n\n${section}` : ""}`;
 }

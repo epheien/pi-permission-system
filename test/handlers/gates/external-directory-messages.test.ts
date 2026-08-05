@@ -46,6 +46,15 @@ describe("formatExternalDirectoryAskPrompt", () => {
     expect(result).not.toContain("/projects/my-app");
     expect(result).not.toContain("Agent");
   });
+
+  test("omits the Patterns section when no patterns are provided", () => {
+    const result = formatExternalDirectoryAskPrompt(
+      "/etc/passwd",
+      undefined,
+      [],
+    );
+    expect(result).toBe("Access external directory /etc/passwd");
+  });
 });
 
 describe("formatBashExternalDirectoryAskPrompt", () => {
@@ -85,5 +94,13 @@ describe("formatBashExternalDirectoryAskPrompt", () => {
         "Access external directory /etc/hosts\n\n" +
         "Patterns\n- /etc/*",
     );
+  });
+
+  test("omits the Patterns section when no patterns are provided", () => {
+    const result = formatBashExternalDirectoryAskPrompt(
+      [{ path: "/etc/hosts" }],
+      [],
+    );
+    expect(result).toBe("Access external directory /etc/hosts");
   });
 });
