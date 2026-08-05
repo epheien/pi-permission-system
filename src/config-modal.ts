@@ -4,6 +4,7 @@ import {
   getSettingsListTheme,
 } from "@earendil-works/pi-coding-agent";
 import { type SettingItem, SettingsList } from "@earendil-works/pi-tui";
+import { PanelFrame } from "#src/ui/panel-frame";
 
 import type { CommandConfigStore } from "./config-store";
 import {
@@ -187,7 +188,7 @@ async function openSettingsModal(
 
   // eslint-disable-next-line @typescript-eslint/no-invalid-void-type -- ctx.ui.custom<void> is valid; rule does not allow void in generic fn call type args
   await ctx.ui.custom<void>(
-    (_tui, _theme, _keybindings, done) => {
+    (_tui, theme, _keybindings, done) => {
       let current = controller.config.current();
       const settingsList = new SettingsList(
         buildSettingItems(current),
@@ -201,8 +202,14 @@ async function openSettingsModal(
         },
         () => done(),
       );
-
-      return settingsList;
+      const framed = new PanelFrame(settingsList, (text) =>
+        theme.fg("accent", text),
+      );
+      return {
+        render: (width: number) => framed.render(width),
+        invalidate: () => framed.invalidate(),
+        handleInput: (data: string) => settingsList.handleInput(data),
+      };
     },
     { overlay: true, overlayOptions },
   );

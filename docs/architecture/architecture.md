@@ -773,6 +773,7 @@ src/
 ├── extension-paths.ts        `ExtensionPaths` value object - immutable path constants derived from `agentDir` (and optional Pi `getPackageDir()`) at startup (`computeExtensionPaths`)
 ├── config-reporter.ts        Structured log entries for resolved config
 ├── config-modal.ts           /permission-system slash command UI
+├── ui/panel-frame.ts         Shared `PanelFrame` TUI box frame; borders the permission-ask overlay and the settings modal
 ├── extension-config.ts       Runtime knobs (debugLog, yoloMode, etc.)
 │
 ├── permission-merge.ts        Deep-shallow merge for flat permission configs

@@ -16,16 +16,21 @@ vi.mock("@earendil-works/pi-coding-agent", () => ({
   getSettingsListTheme: () => ({}),
 }));
 
-vi.mock("@earendil-works/pi-tui", () => ({
-  SettingsList: class {
-    handleInput(): void {}
-    updateValue(): void {}
-    render(): string[] {
-      return [];
-    }
-    invalidate(): void {}
-  },
-}));
+vi.mock("@earendil-works/pi-tui", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@earendil-works/pi-tui")>();
+  return {
+    ...actual,
+    SettingsList: class {
+      handleInput(): void {}
+      updateValue(): void {}
+      render(): string[] {
+        return ["YOLO mode            on", "Debug logging        off"];
+      }
+      invalidate(): void {}
+    },
+  };
+});
 
 type Notification = { message: string; level: "info" | "warning" | "error" };
 
@@ -44,9 +49,11 @@ function createCommandContext(hasUI: boolean): {
   ctx: CommandContextStub;
   notifications: Notification[];
   getCustomCalls(): number;
+  getCustomRenderer(): ((...args: unknown[]) => unknown) | undefined;
 } {
   const notifications: Notification[] = [];
   let customCalls = 0;
+  let capturedRenderer: ((...args: unknown[]) => unknown) | undefined;
 
   return {
     ctx: {
@@ -56,16 +63,18 @@ function createCommandContext(hasUI: boolean): {
           notifications.push({ message, level });
         },
         async custom<T>(
-          _renderer: (...args: unknown[]) => unknown,
+          renderer: (...args: unknown[]) => unknown,
           _options?: unknown,
         ): Promise<T> {
           customCalls += 1;
+          capturedRenderer = renderer;
           return undefined as T;
         },
       },
     },
     notifications,
     getCustomCalls: () => customCalls,
+    getCustomRenderer: () => capturedRenderer,
   };
 }
 
@@ -318,4 +327,57 @@ test("show output omits rule summary when getComposedRules is not provided", asy
   expect(msg).toContain("yoloMode=on");
   // No rule annotation lines.
   expect(msg).not.toContain("(global)");
+});
+
+test("settings modal renders a box frame around the settings list", async () => {
+  const baseDir = mkdtempSync(
+    join(tmpdir(), "pi-permission-system-modal-frame-"),
+  );
+  const configPath = join(baseDir, "config.json");
+  const config = { ...DEFAULT_EXTENSION_CONFIG };
+
+  try {
+    const controller = {
+      config: { current: () => config, save: () => {} } as CommandConfigStore,
+      configPath,
+      getActiveAgentConfigRules: () => [] as Ruleset,
+    };
+
+    let definition: {
+      handler: (args: string, ctx: CommandContextStub) => Promise<void>;
+    } | null = null;
+
+    registerPermissionSystemCommand(
+      {
+        registerCommand(_name: string, nextDef: typeof definition) {
+          definition = nextDef;
+        },
+      } as never,
+      controller,
+    );
+
+    const ctx = createCommandContext(true);
+    await definition!.handler("", ctx.ctx);
+
+    const renderer = ctx.getCustomRenderer();
+    expect(renderer).toBeTypeOf("function");
+
+    const theme = { fg: (_color: string, text: string) => text };
+    const component = (
+      renderer as (...args: unknown[]) => { render(width: number): string[] }
+    )({ requestRender: () => {} }, theme, {}, () => {});
+    const lines = component.render(40);
+
+    expect(lines.length).toBeGreaterThan(2);
+    expect(lines[0]).toMatch(/^┌/);
+    expect(lines[0]).toMatch(/┐$/);
+    expect(lines[lines.length - 1]).toMatch(/^└/);
+    expect(lines[lines.length - 1]).toMatch(/┘$/);
+    for (const line of lines.slice(1, -1)) {
+      expect(line.startsWith("│")).toBe(true);
+      expect(line.endsWith("│")).toBe(true);
+    }
+  } finally {
+    rmSync(baseDir, { recursive: true, force: true });
+  }
 });
