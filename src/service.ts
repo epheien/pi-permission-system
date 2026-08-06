@@ -38,6 +38,7 @@ export interface AuthorizerLog {
   debug(event: string, details?: Record<string, unknown>): void;
 }
 export type { PromptPermissionDetails } from "./authority/permission-prompter";
+export type { PermissionSystemExtensionConfig } from "./extension-config";
 export type {
   ForwardedPromptContext,
   PermissionDecisionEvent,

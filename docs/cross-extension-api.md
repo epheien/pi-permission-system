@@ -1,9 +1,10 @@
 # Event API
 
-The extension provides two cross-extension integration surfaces:
+The extension provides three cross-extension integration surfaces:
 
 1. **Service accessor** (preferred) — a `Symbol.for()`-backed synchronous API on `globalThis` for direct policy queries.
-2. **Event bus** — broadcasts on `pi.events` for observation.
+2. **Configuration API** — a `Symbol.for()`-backed service for reading and toggling runtime configuration (YOLO mode).
+3. **Event bus** — broadcasts on `pi.events` for observation.
 
 ---
 

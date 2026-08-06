@@ -67,6 +67,7 @@ import {
   PERMISSIONS_UI_PROMPT_CHANNEL,
   type PermissionCheckResult,
   type PermissionUiPromptEvent,
+  type PermissionSystemExtensionConfig,
 } from "@gotgenes/pi-permission-system";
 
 void getPermissionsService;
@@ -74,8 +75,10 @@ void getPermissionConfigService;
 void PERMISSIONS_UI_PROMPT_CHANNEL;
 const _e: PermissionUiPromptEvent | undefined = undefined;
 const _r: PermissionCheckResult | undefined = undefined;
+const _pc: PermissionSystemExtensionConfig | undefined = undefined;
 void _e;
 void _r;
+void _pc;
 TS
 
 # Install the packaged tarball plus the two peer deps a real consumer would have.

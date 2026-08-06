@@ -22,12 +22,17 @@ export function toggleYoloConfig(
  * Wraps the narrow {@link PermissionConfigStore} (the shared `ConfigStore`) so
  * `getConfig()` reflects the live runtime config and `toggleYoloMode()` persists
  * through the same ctx-free core the gates read.
+ *
+ * `getConfig()` returns a shallow snapshot — never the live store object the
+ * gates read each check — so callers cannot mutate the in-memory policy.
  */
 export class LocalPermissionConfigService implements PermissionConfigService {
   constructor(private readonly store: PermissionConfigStore) {}
 
   getConfig(): PermissionSystemExtensionConfig {
-    return this.store.current();
+    // Shallow copy: callers must not reach the live config object the gates
+    // read each check. The only mutation channel is toggleYoloMode (saveRuntime).
+    return { ...this.store.current() };
   }
 
   toggleYoloMode(): PermissionSystemExtensionConfig {

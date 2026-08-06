@@ -23,7 +23,7 @@ Permission enforcement extension for the [Pi](https://pi.mariozechner.at/) codin
 - **Forwards prompts from subagents** — `ask` policies work even in non-UI execution contexts
 - **Broadcasts UI prompt events** — `permissions:ui_prompt` fires only when the permission system is about to invoke the active user-facing permission UI
 - **Native [`@gotgenes/pi-subagents`](https://github.com/gotgenes/pi-subagents) integration** — in-process child sessions register with the permission system automatically, enabling per-agent policy enforcement and `ask`-state forwarding to the parent UI without configuration
-- **Public YOLO-mode config service** — `getPermissionConfigService()` reads and toggles YOLO mode, `Ctrl+Alt+Y` toggles it anytime from the TUI, and `/permission-system yolo` is the headless/CLI path
+- **Public YOLO-mode config service** — `getPermissionConfigService()` reads and toggles YOLO mode, `ctrl+alt+y` toggles it anytime from the TUI, and `/permission-system yolo` is the headless/CLI path
 
 ## Install
 
