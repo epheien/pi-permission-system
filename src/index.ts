@@ -32,6 +32,7 @@ import { SkillInputGatePipeline } from "./handlers/gates/skill-input-gate-pipeli
 import { ToolCallGatePipeline } from "./handlers/gates/tool-call-gate-pipeline";
 import { createFailClosedToolCall } from "./handlers/tool-call-boundary";
 import { pathFlavorForPlatform } from "./path/path-flavor";
+import { LocalPermissionConfigService } from "./permission-config-service";
 import { PermissionManager } from "./permission-manager";
 import { PermissionResolver } from "./permission-resolver";
 import { PermissionSession } from "./permission-session";
@@ -41,6 +42,7 @@ import { PermissionSessionLogger } from "./session-logger";
 import { SessionRules } from "./session-rules";
 import { ToolAccessExtractorRegistry } from "./tool-access-extractor-registry";
 import { ToolInputFormatterRegistry } from "./tool-input-formatter-registry";
+import { registerYoloModeShortcut } from "./yolo-shortcut";
 
 export default function piPermissionSystemExtension(pi: ExtensionAPI): void {
   const agentDir = getAgentDir();
@@ -185,6 +187,13 @@ export default function piPermissionSystemExtension(pi: ExtensionAPI): void {
       ),
   });
 
+  // The public config surface: constructed over the same configStore the gates
+  // read, so a toggle persists through the ctx-free saveRuntime core and takes
+  // effect immediately. The ctrl+alt+y shortcut and the /permission-system yolo
+  // command both toggle through this unit.
+  const configService = new LocalPermissionConfigService(configStore);
+  registerYoloModeShortcut(pi, configService);
+
   const permissionsService = new LocalPermissionsService(
     resolver,
     session,
@@ -207,6 +216,7 @@ export default function piPermissionSystemExtension(pi: ExtensionAPI): void {
   // requires the session id from ctx, unavailable at factory-init time.
   const serviceLifecycle = new PermissionServiceLifecycle(
     permissionsService,
+    configService,
     subagentDetection,
     pi.events,
     [unsubSubagentLifecycle],

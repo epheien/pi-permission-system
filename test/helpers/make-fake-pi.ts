@@ -34,6 +34,11 @@ export interface FakePi {
   /** Every `pi.registerCommand(name, …)` registration, keyed by command name. */
   commands: Map<string, unknown>;
   /**
+   * Every `pi.registerShortcut(key, …)` registration, keyed by shortcut key
+   * string.
+   */
+  shortcuts: Map<string, unknown>;
+  /**
    * Drive a registered handler; resolves to its (possibly async) result.
    *
    * Throws if no handler is registered for `event` so a typo in a test surfaces
@@ -67,11 +72,13 @@ export function makeFakePi(options: MakeFakePiOptions = {}): FakePi {
   const toolNames = options.toolNames ?? DEFAULT_TOOL_NAMES;
   const handlers = new Map<string, RecordedHandler>();
   const commands = new Map<string, unknown>();
+  const shortcuts = new Map<string, unknown>();
 
   return {
     events,
     handlers,
     commands,
+    shortcuts,
     fire(event, input, ctx): Promise<unknown> {
       const handler = handlers.get(event);
       if (!handler) {
@@ -92,6 +99,9 @@ export function makeFakePi(options: MakeFakePiOptions = {}): FakePi {
     },
     registerCommand(name: string, optionsArg: unknown): void {
       commands.set(name, optionsArg);
+    },
+    registerShortcut(key: string, optionsArg: unknown): void {
+      shortcuts.set(key, optionsArg);
     },
     // ── ExtensionAPI methods present for the cast but unused by the factory ─
     registerProvider: vi.fn(),
