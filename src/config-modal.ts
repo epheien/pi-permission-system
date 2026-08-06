@@ -38,13 +38,18 @@ const COMMAND_ARGUMENTS = [
     description: "Restore default yolo/logging settings and persist them",
   },
   {
+    value: "yolo",
+    label: "Toggle YOLO mode",
+    description: "Flip yoloMode and persist it to the global config",
+  },
+  {
     value: "help",
     label: "Show help",
     description: "Display command usage",
   },
 ] as const;
 const USAGE_TEXT =
-  "Usage: /permission-system [show|path|reset|help] (or run /permission-system with no args to open settings modal)";
+  "Usage: /permission-system [show|path|reset|help|yolo] (or run /permission-system with no args to open settings modal)";
 
 function cloneDefaultConfig(): PermissionSystemExtensionConfig {
   return {
@@ -214,6 +219,12 @@ async function openSettingsModal(
   );
 }
 
+function toggleYoloMode(
+  config: PermissionSystemExtensionConfig,
+): PermissionSystemExtensionConfig {
+  return { ...config, yoloMode: !config.yoloMode };
+}
+
 function handleArgs(
   args: string,
   ctx: ExtensionCommandContext,
@@ -241,6 +252,17 @@ function handleArgs(
   if (normalized === "reset") {
     controller.config.save(cloneDefaultConfig(), ctx);
     ctx.ui.notify("Permission system settings reset to defaults.", "info");
+    return true;
+  }
+
+  if (normalized === "yolo") {
+    const next = toggleYoloMode(controller.config.current());
+    const enabled = next.yoloMode;
+    controller.config.save(next, ctx);
+    ctx.ui.notify(
+      enabled ? "YOLO mode ON — ask checks auto-approved" : "YOLO mode off",
+      enabled ? "warning" : "info",
+    );
     return true;
   }
 

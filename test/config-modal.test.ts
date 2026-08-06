@@ -138,6 +138,10 @@ test("permission-system command completions expose top-level config actions", ()
 
     const filtered = definition!.getArgumentCompletions?.("pa");
     expect(filtered?.map((item) => item.value)).toEqual(["path"]);
+    expect(topLevel?.some((item) => item.value === "yolo")).toBeTruthy();
+
+    const filteredYol = definition!.getArgumentCompletions?.("yol");
+    expect(filteredYol?.map((item) => item.value)).toEqual(["yolo"]);
     expect(definition!.getArgumentCompletions?.("path extra")).toBe(null);
     expect(definition!.getArgumentCompletions?.("zzz")).toBe(null);
   } finally {
@@ -254,6 +258,75 @@ test("permission-system command handlers manage config summary, persistence, and
     const modalCtx = createCommandContext(true);
     await definition!.handler("", modalCtx.ctx);
     expect(modalCtx.getCustomCalls()).toBe(1);
+  } finally {
+    rmSync(baseDir, { recursive: true, force: true });
+  }
+});
+
+test("permission-system yolo command toggles and persists yoloMode", async () => {
+  const baseDir = mkdtempSync(join(tmpdir(), "pi-permission-system-yolo-"));
+  const configPath = join(baseDir, "config.json");
+  let config: PermissionSystemExtensionConfig = {
+    ...DEFAULT_EXTENSION_CONFIG,
+  };
+
+  try {
+    writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
+
+    const configStore: CommandConfigStore = {
+      current: () => config,
+      save: (next) => {
+        writeFileSync(
+          configPath,
+          `${JSON.stringify(next, null, 2)}\n`,
+          "utf-8",
+        );
+        config = next;
+      },
+    };
+    const controller = {
+      config: configStore,
+      configPath,
+      getActiveAgentConfigRules: () => [] as Ruleset,
+    };
+
+    let definition: {
+      handler: (args: string, ctx: CommandContextStub) => Promise<void>;
+    } | null = null;
+
+    registerPermissionSystemCommand(
+      {
+        registerCommand(_name: string, nextDef: typeof definition) {
+          definition = nextDef;
+        },
+      } as never,
+      controller,
+    );
+
+    // yoloMode starts off; one invocation turns it on and persists.
+    const ctx = createCommandContext(false);
+    await definition!.handler("yolo", ctx.ctx);
+    expect(config.yoloMode).toBe(true);
+    expect(lastNotification(ctx.notifications)).toEqual({
+      message: "YOLO mode ON — ask checks auto-approved",
+      level: "warning",
+    });
+    const persistedOn = JSON.parse(
+      readFileSync(configPath, "utf8"),
+    ) as PermissionSystemExtensionConfig;
+    expect(persistedOn.yoloMode).toBe(true);
+
+    // Second invocation turns it off and persists.
+    await definition!.handler("yolo", ctx.ctx);
+    expect(config.yoloMode).toBe(false);
+    expect(lastNotification(ctx.notifications)).toEqual({
+      message: "YOLO mode off",
+      level: "info",
+    });
+    const persistedOff = JSON.parse(
+      readFileSync(configPath, "utf8"),
+    ) as PermissionSystemExtensionConfig;
+    expect(persistedOff.yoloMode).toBe(false);
   } finally {
     rmSync(baseDir, { recursive: true, force: true });
   }
