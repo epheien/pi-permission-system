@@ -49,7 +49,7 @@ function register(): {
   const registerShortcut = vi.fn();
   const pi = { registerShortcut } as never;
   registerYoloModeShortcut(
-    pi as never,
+    pi,
     makeConfigService({
       ...DEFAULT_EXTENSION_CONFIG,
     }) as never,
