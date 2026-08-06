@@ -13,8 +13,8 @@ export const PERMISSION_SYSTEM_STATUS_KEY = EXTENSION_ID;
 export const PERMISSION_SYSTEM_YOLO_STATUS_VALUE = "yolo";
 
 type PermissionStatusContext =
-  | Pick<ExtensionContext, "hasUI" | "ui">
-  | Pick<ExtensionCommandContext, "ui">;
+  | Pick<ExtensionContext, "mode" | "hasUI" | "ui">
+  | Pick<ExtensionCommandContext, "mode" | "ui">;
 
 export function getPermissionSystemStatus(
   config: PermissionSystemExtensionConfig,
@@ -28,20 +28,32 @@ export function syncPermissionSystemStatus(
   ctx: PermissionStatusContext,
   config: PermissionSystemExtensionConfig,
 ): void {
-  const status = getPermissionSystemStatus(config);
   ctx.ui.setStatus(
     PERMISSION_SYSTEM_STATUS_KEY,
-    status === undefined ? undefined : renderYoloStatus(ctx.ui, status),
+    styleYoloStatus(ctx, getPermissionSystemStatus(config)),
   );
 }
 
 /**
- * Render the yolo status text in a high-visibility red, bold style so an
+ * Apply the high-visibility red, bold style to the yolo status text so an
  * active yolo mode is hard to miss in the status bar.
+ *
+ * Styling is deliberately terminal-only: in non-TUI modes (`rpc`, `json`,
+ * `print`) the status is forwarded as plain text so RPC clients and other
+ * consumers don't receive ANSI escape sequences, and only the yolo status
+ * value itself is styled so future status values aren't accidentally painted
+ * red.
  */
-function renderYoloStatus(
-  ui: PermissionStatusContext["ui"],
-  status: string,
-): string {
-  return ui.theme.fg("error", ui.theme.bold(status));
+function styleYoloStatus(
+  ctx: PermissionStatusContext,
+  status: string | undefined,
+): string | undefined {
+  if (
+    status === undefined ||
+    ctx.mode !== "tui" ||
+    status !== PERMISSION_SYSTEM_YOLO_STATUS_VALUE
+  ) {
+    return status;
+  }
+  return ctx.ui.theme.fg("error", ctx.ui.theme.bold(status));
 }

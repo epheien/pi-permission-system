@@ -1,3 +1,7 @@
+import type {
+  ExtensionUIContext,
+  ThemeColor,
+} from "@earendil-works/pi-coding-agent";
 import { expect, test, vi } from "vitest";
 import { DEFAULT_EXTENSION_CONFIG } from "#src/extension-config";
 import {
@@ -13,11 +17,12 @@ import {
  */
 function makeFauxUi() {
   const theme = {
-    fg: vi.fn((_color: string, text: string) => `fg(${_color},${text})`),
+    fg: vi.fn((_color: ThemeColor, text: string) => `fg(${_color},${text})`),
     bold: vi.fn((text: string) => `bold(${text})`),
   };
   const setStatus = vi.fn();
-  return { ui: { theme, setStatus }, theme, setStatus };
+  const ui = { theme, setStatus } as unknown as ExtensionUIContext;
+  return { ui, theme, setStatus };
 }
 
 test("Permission-system status is only exposed when yolo mode is enabled", () => {
@@ -30,10 +35,13 @@ test("Permission-system status is only exposed when yolo mode is enabled", () =>
 test("syncPermissionSystemStatus renders yolo as a red, bold status when enabled", () => {
   const { ui, theme, setStatus } = makeFauxUi();
 
-  syncPermissionSystemStatus({ ui } as never, {
-    ...DEFAULT_EXTENSION_CONFIG,
-    yoloMode: true,
-  });
+  syncPermissionSystemStatus(
+    { mode: "tui", ui },
+    {
+      ...DEFAULT_EXTENSION_CONFIG,
+      yoloMode: true,
+    },
+  );
 
   expect(theme.fg).toHaveBeenCalledExactlyOnceWith(
     "error",
@@ -46,10 +54,27 @@ test("syncPermissionSystemStatus renders yolo as a red, bold status when enabled
   );
 });
 
+test("syncPermissionSystemStatus keeps the yolo status as plain text outside TUI", () => {
+  const { ui, setStatus } = makeFauxUi();
+
+  syncPermissionSystemStatus(
+    { mode: "rpc", ui },
+    {
+      ...DEFAULT_EXTENSION_CONFIG,
+      yoloMode: true,
+    },
+  );
+
+  expect(setStatus).toHaveBeenCalledExactlyOnceWith(
+    PERMISSION_SYSTEM_STATUS_KEY,
+    "yolo",
+  );
+});
+
 test("syncPermissionSystemStatus clears the yolo status when disabled", () => {
   const { ui, setStatus } = makeFauxUi();
 
-  syncPermissionSystemStatus({ ui } as never, DEFAULT_EXTENSION_CONFIG);
+  syncPermissionSystemStatus({ mode: "tui", ui }, DEFAULT_EXTENSION_CONFIG);
 
   expect(setStatus).toHaveBeenCalledExactlyOnceWith(
     PERMISSION_SYSTEM_STATUS_KEY,
