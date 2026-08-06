@@ -25,6 +25,8 @@ if grep -q '#src' "$DTS"; then
   exit 1
 fi
 for sym in getPermissionsService publishPermissionsService unpublishPermissionsService \
+  getPermissionConfigService publishPermissionConfigService unpublishPermissionConfigService \
+  PermissionConfigService PermissionSystemExtensionConfig \
   PermissionsService PermissionCheckResult PermissionState ToolInputFormatter \
   PERMISSIONS_UI_PROMPT_CHANNEL PERMISSIONS_READY_CHANNEL PERMISSIONS_DECISION_CHANNEL \
   PermissionUiPromptEvent registerAuthorizer PermissionQuery Authorizer \
@@ -61,12 +63,14 @@ JSON
 cat > "$CONSUMER/probe.ts" <<'TS'
 import {
   getPermissionsService,
+  getPermissionConfigService,
   PERMISSIONS_UI_PROMPT_CHANNEL,
   type PermissionCheckResult,
   type PermissionUiPromptEvent,
 } from "@gotgenes/pi-permission-system";
 
 void getPermissionsService;
+void getPermissionConfigService;
 void PERMISSIONS_UI_PROMPT_CHANNEL;
 const _e: PermissionUiPromptEvent | undefined = undefined;
 const _r: PermissionCheckResult | undefined = undefined;
