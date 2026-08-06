@@ -58,6 +58,17 @@ export interface CommandConfigStore extends ConfigReader {
   ): void;
 }
 
+/**
+ * Narrow subset of `ConfigStore` for the public config service: read the
+ * current config and persist a replacement without any UI context.
+ *
+ * Using an interface rather than the concrete class avoids private-member
+ * coupling between the class and test doubles.
+ */
+export interface PermissionConfigStore extends ConfigReader {
+  saveRuntime(next: PermissionSystemExtensionConfig): PermissionSystemExtensionConfig;
+}
+
 /** Narrow view of the manager's resolved policy paths (for `logResolvedPaths`). */
 export interface ResolvedPolicyPathProvider {
   getResolvedPolicyPaths(): ResolvedPolicyPaths;
@@ -79,7 +90,9 @@ export interface ConfigStoreDeps {
  * Implements {@link ConfigReader} so consumers that only read the current config
  * can depend on the narrow interface rather than the full class.
  */
-export class ConfigStore implements SessionConfigStore, CommandConfigStore {
+export class ConfigStore
+  implements SessionConfigStore, CommandConfigStore, PermissionConfigStore
+{
   private config: PermissionSystemExtensionConfig;
   private lastConfigWarning: string | null = null;
 
@@ -135,17 +148,15 @@ export class ConfigStore implements SessionConfigStore, CommandConfigStore {
   }
 
   /**
-   * Save updated runtime knobs to the global config file, then update
-   * the current config and sync UI status.
+   * Persist a replacement runtime config to the global config file and update
+   * the current config, with no UI context dependency.
    *
-   * Equivalent to `saveExtensionConfig(runtime, next, ctx)`.
+   * This is the ctx-free core behind {@link save}. It returns the normalized
+   * config and throws on write failure — the caller owns error surfacing.
    */
-  // Called via the CommandConfigStore interface from config-modal.ts — fallow cannot trace through interfaces.
-  // fallow-ignore-next-line unused-class-member
-  save(
+  saveRuntime(
     next: PermissionSystemExtensionConfig,
-    ctx: ExtensionCommandContext,
-  ): void {
+  ): PermissionSystemExtensionConfig {
     const normalized = normalizePermissionSystemConfig(next);
     const globalPath = getGlobalConfigPath(this.deps.agentDir);
 
@@ -170,16 +181,10 @@ export class ConfigStore implements SessionConfigStore, CommandConfigStore {
       } catch {
         // Ignore cleanup failures.
       }
-      const message = error instanceof Error ? error.message : String(error);
-      ctx.ui.notify(
-        `Failed to save permission-system config at '${globalPath}': ${message}`,
-        "error",
-      );
-      return;
+      throw error;
     }
 
     this.config = normalized;
-    syncPermissionSystemStatus(ctx, normalized);
     this.lastConfigWarning = null;
 
     this.deps.logger.debug("config.saved", {
@@ -187,6 +192,34 @@ export class ConfigStore implements SessionConfigStore, CommandConfigStore {
       permissionReviewLog: normalized.permissionReviewLog,
       yoloMode: normalized.yoloMode,
     });
+    return normalized;
+  }
+
+  /**
+   * Save updated runtime knobs to the global config file, then update
+   * the current config and sync UI status.
+   *
+   * Thin decorator over {@link saveRuntime}: persists, then syncs UI status,
+   * and surfaces write failures as a UI error notification.
+   *
+   * Equivalent to `saveExtensionConfig(runtime, next, ctx)`.
+   */
+  // Called via the CommandConfigStore interface from config-modal.ts — fallow cannot trace through interfaces.
+  // fallow-ignore-next-line unused-class-member
+  save(
+    next: PermissionSystemExtensionConfig,
+    ctx: ExtensionCommandContext,
+  ): void {
+    try {
+      const normalized = this.saveRuntime(next);
+      syncPermissionSystemStatus(ctx, normalized);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      ctx.ui.notify(
+        `Failed to save permission-system config at '${getGlobalConfigPath(this.deps.agentDir)}': ${message}`,
+        "error",
+      );
+    }
   }
 
   /**

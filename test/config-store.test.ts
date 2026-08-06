@@ -426,6 +426,62 @@ describe("ConfigStore", () => {
     });
   });
 
+  // ── saveRuntime() ────────────────────────────────────────────────────
+
+  describe("saveRuntime()", () => {
+    it("persists via tmp write + rename and returns the normalized config", () => {
+      const { store } = makeStore();
+      mockLoadUnifiedConfig.mockReturnValue({
+        config: { permission: { "*": "ask" } },
+      });
+      const next = { ...DEFAULT_EXTENSION_CONFIG, debugLog: true };
+      const result = store.saveRuntime(next);
+      expect(mockWriteFileSync).toHaveBeenCalledWith(
+        expect.stringContaining(".tmp"),
+        expect.stringContaining('"debugLog": true'),
+        "utf-8",
+      );
+      expect(mockRenameSync).toHaveBeenCalled();
+      expect(result.debugLog).toBe(true);
+    });
+
+    it("updates current() after a successful saveRuntime", () => {
+      const { store } = makeStore();
+      store.saveRuntime({ ...DEFAULT_EXTENSION_CONFIG, yoloMode: true });
+      expect(store.current().yoloMode).toBe(true);
+    });
+
+    it("writes config.saved debug log after a successful saveRuntime", () => {
+      const { store, logger } = makeStore();
+      store.saveRuntime({ ...DEFAULT_EXTENSION_CONFIG });
+      expect(logger.debug).toHaveBeenCalledWith(
+        "config.saved",
+        expect.objectContaining({ yoloMode: false }),
+      );
+    });
+
+    it("throws on write failure, leaves current() unchanged, and logs nothing", () => {
+      const { store, logger } = makeStore();
+      mockMkdirSync.mockImplementation(() => {
+        throw new Error("disk full");
+      });
+      expect(() => store.saveRuntime({ ...DEFAULT_EXTENSION_CONFIG })).toThrow(
+        "disk full",
+      );
+      expect(store.current()).toEqual(DEFAULT_EXTENSION_CONFIG);
+      expect(logger.debug).not.toHaveBeenCalledWith(
+        "config.saved",
+        expect.anything(),
+      );
+    });
+
+    it("does not call syncPermissionSystemStatus (no ctx dependency)", () => {
+      const { store } = makeStore();
+      store.saveRuntime({ ...DEFAULT_EXTENSION_CONFIG });
+      expect(mockSyncPermissionSystemStatus).not.toHaveBeenCalled();
+    });
+  });
+
   // ── logResolvedPaths() ─────────────────────────────────────────────────
 
   describe("logResolvedPaths()", () => {
