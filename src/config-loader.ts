@@ -230,6 +230,14 @@ export function mergeUnifiedConfigs(
     }
   }
 
+  // String scalars: override replaces base when defined
+  for (const key of ["yoloModeShortcut"] as const) {
+    const value = override[key] ?? base[key];
+    if (value !== undefined) {
+      merged[key] = value;
+    }
+  }
+
   // Array fields: override replaces base when defined
   for (const key of ["piInfrastructureReadPaths", "authorizerChain"] as const) {
     const value = override[key] ?? base[key];

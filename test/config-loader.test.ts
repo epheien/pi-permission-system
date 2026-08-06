@@ -498,6 +498,20 @@ describe("mergeUnifiedConfigs", () => {
     expect(merged.doublePressToConfirm).toBe(false);
   });
 
+  it("carries yoloModeShortcut from the base and lets the override win", () => {
+    const fromGlobal = mergeUnifiedConfigs(
+      { yoloModeShortcut: "ctrl+y" },
+      {},
+    );
+    expect(fromGlobal.yoloModeShortcut).toBe("ctrl+y");
+
+    const overridden = mergeUnifiedConfigs(
+      { yoloModeShortcut: "ctrl+alt+y" },
+      { yoloModeShortcut: "ctrl+shift+y" },
+    );
+    expect(overridden.yoloModeShortcut).toBe("ctrl+shift+y");
+  });
+
   it("returns base unchanged when override is empty", () => {
     const base = {
       debugLog: true,
