@@ -28,8 +28,20 @@ export function syncPermissionSystemStatus(
   ctx: PermissionStatusContext,
   config: PermissionSystemExtensionConfig,
 ): void {
+  const status = getPermissionSystemStatus(config);
   ctx.ui.setStatus(
     PERMISSION_SYSTEM_STATUS_KEY,
-    getPermissionSystemStatus(config),
+    status === undefined ? undefined : renderYoloStatus(ctx.ui, status),
   );
+}
+
+/**
+ * Render the yolo status text in a high-visibility red, bold style so an
+ * active yolo mode is hard to miss in the status bar.
+ */
+function renderYoloStatus(
+  ui: PermissionStatusContext["ui"],
+  status: string,
+): string {
+  return ui.theme.fg("error", ui.theme.bold(status));
 }
