@@ -285,6 +285,60 @@ Best practice: call `getPermissionsService()` per use rather than caching the re
 The `import()` throws if the package is not installed.
 Wrap both in `try/catch` + `if` guard as shown in the Quick Start example.
 
+## Configuration API
+
+The extension also publishes a `Symbol.for()`-backed configuration service on `globalThis`, mirroring the permission-query accessor above.
+It gives other extensions a read-only snapshot of the current runtime config plus one mutation: toggle YOLO mode.
+
+### Accessor
+
+Retrieve the service with `getPermissionConfigService()`.
+It reads the shared slot at `Symbol.for("@gotgenes/pi-permission-system:config-service")`.
+As with the permission-query service, the top-level (parent) instance publishes at `session_start`; an in-process subagent child resolves the parent's service instead of publishing its own.
+
+### API
+
+The `PermissionConfigService` interface:
+
+```typescript
+interface PermissionConfigService {
+  /** Current runtime extension config snapshot (read-only). */
+  getConfig(): PermissionSystemExtensionConfig;
+
+  /**
+   * Flip `yoloMode` and persist it to the global config, then return the new
+   * config. Throws on write failure — the caller surfaces the error.
+   */
+  toggleYoloMode(): PermissionSystemExtensionConfig;
+}
+```
+
+- `getConfig()` returns a read-only snapshot of the current runtime config with no side effects.
+- `toggleYoloMode()` flips `yoloMode`, persists it to the global config file, and returns the new config.
+  It is ctx-free — notifications and status-bar feedback are the caller's job — and throws on write failure, which the caller surfaces.
+
+### Usage
+
+```typescript
+const { getPermissionConfigService } = await import(
+  "@gotgenes/pi-permission-system"
+);
+const configService = getPermissionConfigService();
+if (configService) {
+  console.log(configService.getConfig().yoloMode ? "yolo on" : "yolo off");
+  const next = configService.toggleYoloMode(); // persists; throws on write failure
+  console.log(next.yoloMode ? "yolo on" : "yolo off");
+}
+```
+
+As with `getPermissionsService()`, the accessor returns `undefined` when the extension has not loaded, and `import()` throws if the package is not installed — wrap both in `try/catch` + `if` for graceful degradation.
+
+### How It Works
+
+`/reload` re-publishes a fresh service, so call `getPermissionConfigService()` per use rather than caching the reference.
+The toggle takes effect on the very next gate resolution: the gates read `configStore.current()` per check, and `toggleYoloMode()` persists through the same ctx-free store — so a just-flipped `yoloMode` is honored immediately.
+The TUI `ctrl+alt+y` shortcut is one caller of this service (see the README), and `/permission-system yolo` is the headless/CLI path through the same toggle unit.
+
 ---
 
 ## Event Bus
