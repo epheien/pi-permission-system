@@ -4,12 +4,23 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { Key } from "@earendil-works/pi-tui";
 import type { PermissionSystemExtensionConfig } from "./extension-config";
+import { parseShortcutKey } from "./keyboard-shortcut";
 import type { PermissionConfigService } from "./service";
 import { syncPermissionSystemStatus } from "./status";
 
+/** Default shortcut key used when the config does not specify one. */
+export const DEFAULT_YOLO_MODE_SHORTCUT = Key.ctrlAlt("y");
+
 /**
- * Register the `ctrl+alt+y` shortcut that flips YOLO mode through the public
+ * Register the YOLO-mode toggle shortcut through the public
  * {@link PermissionConfigService}.
+ *
+ * The key comes from the config (`yoloModeShortcut`, a pi `KeyId` string):
+ * - absent → the default {@link DEFAULT_YOLO_MODE_SHORTCUT} (`ctrl+alt+y`);
+ * - blank → the shortcut is explicitly disabled (nothing registered);
+ * - malformed → fail-safe: nothing is registered (a malformed string would be
+ *   silently mis-parsed by pi into a different binding);
+ * - valid → registered with that exact key.
  *
  * π dispatches extension shortcuts only in interactive (TUI) mode, so this is
  * the interactive path; headless toggling stays available via the
@@ -20,8 +31,14 @@ import { syncPermissionSystemStatus } from "./status";
 export function registerYoloModeShortcut(
   pi: ExtensionAPI,
   configService: PermissionConfigService,
+  shortcut?: string,
 ): void {
-  pi.registerShortcut(Key.ctrlAlt("y"), {
+  const parsed = parseShortcutKey(shortcut ?? DEFAULT_YOLO_MODE_SHORTCUT);
+  if (!parsed.ok) {
+    // Blank → disabled; malformed → never a silently-different binding.
+    return;
+  }
+  pi.registerShortcut(parsed.key, {
     description: "Toggle YOLO mode",
     handler: (ctx: ExtensionContext) => {
       let next: PermissionSystemExtensionConfig;

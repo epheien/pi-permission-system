@@ -179,6 +179,23 @@ describe("normalizePermissionSystemConfig", () => {
     const result = normalizePermissionSystemConfig({});
     expect("authorizerChain" in result).toBe(false);
   });
+
+  it("includes yoloModeShortcut when provided", () => {
+    const result = normalizePermissionSystemConfig({
+      yoloModeShortcut: "ctrl+shift+y",
+    });
+    expect(result.yoloModeShortcut).toBe("ctrl+shift+y");
+  });
+
+  it("carries a blank yoloModeShortcut through as an explicit disable", () => {
+    const result = normalizePermissionSystemConfig({ yoloModeShortcut: "" });
+    expect(result.yoloModeShortcut).toBe("");
+  });
+
+  it("omits yoloModeShortcut when absent", () => {
+    const result = normalizePermissionSystemConfig({});
+    expect("yoloModeShortcut" in result).toBe(false);
+  });
 });
 
 describe("ensurePermissionSystemLogsDirectory", () => {

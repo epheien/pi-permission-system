@@ -108,6 +108,7 @@ This clamp is deny-preserving and, like `yoloMode`, applied at composition; when
 | `toolTextSummaryMaxLength`  | `80`    | Max characters of inline pattern/path summaries (grep patterns, find globs, ls paths) in permission prompts. Omit to use the default.                                                              |
 | `piInfrastructureReadPaths` | `[]`    | Extra directories to auto-allow for reads, bypassing the `external_directory` gate. Supports `~`/`$HOME` expansion and wildcard patterns (`*`, `?`).                                               |
 | `authorizerChain`           | `[]`    | Ordered names of registered live-authority chain links to consult before the terminal authorizer (see [Authorizer chain](#authorizer-chain--case-by-case-decision-links)).                         |
+| `yoloModeShortcut`          | `ctrl+alt+y` | TUI shortcut that toggles YOLO mode, as a pi `KeyId` (e.g. `ctrl+shift+y`). Blank (`""`) disables the shortcut; a malformed value is ignored (nothing is registered). Absent uses the default.     |
 
 Both logs write to `~/.pi/agent/extensions/pi-permission-system/logs/`.
 No debug output is printed to the terminal.

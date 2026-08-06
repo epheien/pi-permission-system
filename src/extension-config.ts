@@ -28,6 +28,11 @@ export interface PermissionSystemExtensionConfig {
   shellTools?: ShellToolsConfig;
   /** Ordered names of registered live-authority chain links to consult before the terminal authorizer. */
   authorizerChain?: string[];
+  /**
+   * TUI shortcut that toggles YOLO mode, as a pi `KeyId` (e.g. `"ctrl+alt+y"`).
+   * Absent → default `ctrl+alt+y`; blank (`""`) → no shortcut.
+   */
+  yoloModeShortcut?: string;
 }
 
 export const DEFAULT_EXTENSION_CONFIG: PermissionSystemExtensionConfig = {
@@ -82,6 +87,9 @@ export function normalizePermissionSystemConfig(
   }
   if (raw.authorizerChain !== undefined) {
     result.authorizerChain = raw.authorizerChain;
+  }
+  if (raw.yoloModeShortcut !== undefined) {
+    result.yoloModeShortcut = raw.yoloModeShortcut;
   }
   return result;
 }

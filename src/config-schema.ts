@@ -213,6 +213,13 @@ export const unifiedConfigSchema = z
         "Ordered names of registered **live-authority chain links** (e.g. a model judge) to consult before the terminal authorizer (the human, or the subagent-forwarding / headless-deny fallback).\n\nA link reviews an `ask` and returns `allow` / `deny` (with an optional teaching reason) / `defer` to the next link. Three invariants govern the chain:\n\n- **Config order wins.** The order here \u2014 not the order extensions register in \u2014 fixes the security-relevant chain order.\n- **Fail-safe skip.** A name with no registered link is skipped with a warning; the `ask` still reaches the terminal (more prompting, never less).\n- **Opt-in activation.** Installing a judge extension grants it no authority; a link decides nothing until you name it here.\n\nThe chain owner caps every verdict with a bounded-delegation checkpoint: a link's `allow` on an excluded surface (`external_directory` or `path`) is downgraded to `defer`, so a link cannot exceed your policy.\n\nDefaults to an empty list (no links).",
       default: [],
     }),
+    yoloModeShortcut: z.string().optional().meta({
+      description:
+        "TUI shortcut that toggles YOLO mode, as a pi KeyId (e.g. ctrl+alt+y). Blank disables the shortcut; absent uses the default ctrl+alt+y.",
+      markdownDescription:
+        "TUI keyboard shortcut that toggles YOLO mode, as a pi `KeyId` string (e.g. `ctrl+alt+y`, `ctrl+shift+y`).\n\n- **Absent** → the default `ctrl+alt+y` is used.\n- **Blank** → the shortcut is disabled (nothing is registered).\n- **Malformed** → ignored (nothing is registered; never a silently-different binding).\n\nOnly the interactive **TUI** dispatches extension shortcuts; headless runs use `/permission-system yolo` or the `getPermissionConfigService().toggleYoloMode()` API.",
+      default: "ctrl+alt+y",
+    }),
     permission: permissionSchema.optional(),
     shellTools: shellToolsSchema.optional(),
   })

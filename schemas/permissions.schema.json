@@ -65,6 +65,12 @@
         "minLength": 1
       }
     },
+    "yoloModeShortcut": {
+      "description": "TUI shortcut that toggles YOLO mode, as a pi KeyId (e.g. ctrl+alt+y). Blank disables the shortcut; absent uses the default ctrl+alt+y.",
+      "markdownDescription": "TUI keyboard shortcut that toggles YOLO mode, as a pi `KeyId` string (e.g. `ctrl+alt+y`, `ctrl+shift+y`).\n\n- **Absent** → the default `ctrl+alt+y` is used.\n- **Blank** → the shortcut is disabled (nothing is registered).\n- **Malformed** → ignored (nothing is registered; never a silently-different binding).\n\nOnly the interactive **TUI** dispatches extension shortcuts; headless runs use `/permission-system yolo` or the `getPermissionConfigService().toggleYoloMode()` API.",
+      "default": "ctrl+alt+y",
+      "type": "string"
+    },
     "permission": {
       "type": "object",
       "propertyNames": {

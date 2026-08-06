@@ -189,10 +189,14 @@ export default function piPermissionSystemExtension(pi: ExtensionAPI): void {
 
   // The public config surface: constructed over the same configStore the gates
   // read, so a toggle persists through the ctx-free saveRuntime core and takes
-  // effect immediately. The ctrl+alt+y shortcut and the /permission-system yolo
+  // effect immediately. The yolo shortcut and the /permission-system yolo
   // command both toggle through this unit.
   const configService = new LocalPermissionConfigService(configStore);
-  registerYoloModeShortcut(pi, configService);
+  registerYoloModeShortcut(
+    pi,
+    configService,
+    configStore.current().yoloModeShortcut,
+  );
 
   const permissionsService = new LocalPermissionsService(
     resolver,

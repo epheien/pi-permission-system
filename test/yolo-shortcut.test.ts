@@ -135,3 +135,44 @@ describe("registerYoloModeShortcut", () => {
     });
   });
 });
+
+describe("registerYoloModeShortcut with a configured shortcut key", () => {
+  function captureRegistration(shortcut?: string) {
+    const registerShortcut = vi.fn();
+    const pi = { registerShortcut } as never;
+    registerYoloModeShortcut(
+      pi,
+      makeConfigService({
+        ...DEFAULT_EXTENSION_CONFIG,
+      }) as never,
+      shortcut,
+    );
+    return registerShortcut;
+  }
+
+  it("registers a custom configured key (normalized)", () => {
+    const registerShortcut = captureRegistration("shift+ctrl+p");
+    expect(registerShortcut).toHaveBeenCalledWith(
+      "ctrl+shift+p",
+      expect.objectContaining({ description: "Toggle YOLO mode" }),
+    );
+  });
+
+  it("registers the default ctrl+alt+y when no shortcut is given", () => {
+    const registerShortcut = captureRegistration(undefined);
+    expect(registerShortcut).toHaveBeenCalledWith(
+      "ctrl+alt+y",
+      expect.anything(),
+    );
+  });
+
+  it("registers nothing when the shortcut is explicitly disabled (blank)", () => {
+    const registerShortcut = captureRegistration("");
+    expect(registerShortcut).not.toHaveBeenCalled();
+  });
+
+  it("registers nothing for a malformed shortcut value", () => {
+    const registerShortcut = captureRegistration("foo+y");
+    expect(registerShortcut).not.toHaveBeenCalled();
+  });
+});
