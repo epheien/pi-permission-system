@@ -4,10 +4,13 @@ import { AuthorizerRegistry } from "#src/authority/authorizer-registry";
 import { posixPathFlavor } from "#src/path/path-flavor";
 import { PathNormalizer } from "#src/path-normalizer";
 import { LocalPermissionsService } from "#src/permissions-service";
-import type { PermissionsService } from "#src/service";
+import type { PermissionConfigService, PermissionsService } from "#src/service";
 import {
+  getPermissionConfigService,
   getPermissionsService,
+  publishPermissionConfigService,
   publishPermissionsService,
+  unpublishPermissionConfigService,
   unpublishPermissionsService,
 } from "#src/service";
 import { ToolAccessExtractorRegistry } from "#src/tool-access-extractor-registry";
@@ -77,6 +80,59 @@ describe("globalThis accessor", () => {
   it("unpublish is safe to call when nothing was published", () => {
     expect(() => unpublishPermissionsService(makeService())).not.toThrow();
     expect(getPermissionsService()).toBeUndefined();
+  });
+});
+
+function makeConfigService(): PermissionConfigService {
+  return { getConfig: vi.fn(), toggleYoloMode: vi.fn() };
+}
+
+describe("config service globalThis accessor", () => {
+  afterEach(() => {
+    const current = getPermissionConfigService();
+    if (current) {
+      unpublishPermissionConfigService(current);
+    }
+  });
+
+  it("returns undefined when nothing has been published", () => {
+    expect(getPermissionConfigService()).toBeUndefined();
+  });
+
+  it("returns the published config service", () => {
+    const service = makeConfigService();
+    publishPermissionConfigService(service);
+    expect(getPermissionConfigService()).toBe(service);
+  });
+
+  it("overwrites a previously published config service", () => {
+    const first = makeConfigService();
+    const second = makeConfigService();
+    publishPermissionConfigService(first);
+    publishPermissionConfigService(second);
+    expect(getPermissionConfigService()).toBe(second);
+  });
+
+  it("removes the slot when it still holds the given service", () => {
+    const service = makeConfigService();
+    publishPermissionConfigService(service);
+    unpublishPermissionConfigService(service);
+    expect(getPermissionConfigService()).toBeUndefined();
+  });
+
+  it("does not remove the slot when a different service occupies it", () => {
+    const parent = makeConfigService();
+    const child = makeConfigService();
+    publishPermissionConfigService(parent);
+    unpublishPermissionConfigService(child);
+    expect(getPermissionConfigService()).toBe(parent);
+  });
+
+  it("unpublish is safe to call when nothing was published", () => {
+    expect(() =>
+      unpublishPermissionConfigService(makeConfigService()),
+    ).not.toThrow();
+    expect(getPermissionConfigService()).toBeUndefined();
   });
 });
 

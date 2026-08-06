@@ -12,6 +12,7 @@
  */
 
 import type { Authorizer } from "./authority/authorizer";
+import type { PermissionSystemExtensionConfig } from "./extension-config";
 import type { ToolAccessExtractor } from "./tool-access-extractor-registry";
 import type { ToolInputFormatter } from "./tool-input-formatter-registry";
 import type { PermissionCheckResult, PermissionState } from "./types";
@@ -53,6 +54,11 @@ export type { PermissionCheckResult, PermissionState, ToolInputFormatter };
 
 /** Process-global key for the service slot. */
 const SERVICE_KEY = Symbol.for("@gotgenes/pi-permission-system:service");
+
+/** Process-global key for the config service slot. */
+const CONFIG_SERVICE_KEY = Symbol.for(
+  "@gotgenes/pi-permission-system:config-service",
+);
 
 /**
  * The narrow, read-only projection of {@link PermissionsService}: answer a
@@ -212,4 +218,63 @@ export function unpublishPermissionsService(service: PermissionsService): void {
   }
   // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- Symbol-keyed global property; Map.delete() is not applicable
   delete (globalThis as Record<symbol, unknown>)[SERVICE_KEY];
+}
+
+/**
+ * Public configuration surface exposed via `getPermissionConfigService()`.
+ *
+ * A read-only snapshot plus one mutation: flip `yoloMode` and persist it to the
+ * global config through the same ctx-free core the gates read, so it takes
+ * effect on the very next gate resolution. Persistence is ctx-free — the caller
+ * owns any notification / status-bar feedback (the extension's own `ctrl+alt+y`
+ * shortcut and the `/permission-system yolo` command both build on this unit).
+ */
+export interface PermissionConfigService {
+  /** Current runtime extension config snapshot (read-only). */
+  getConfig(): PermissionSystemExtensionConfig;
+  /**
+   * Flip `yoloMode` and persist it to the global config, then return the new
+   * config. Throws on write failure — the caller surfaces the error.
+   */
+  toggleYoloMode(): PermissionSystemExtensionConfig;
+}
+
+/**
+ * Store a `PermissionConfigService` on `globalThis` so other extensions can
+ * retrieve it via `getPermissionConfigService()`.
+ *
+ * Mirror of {@link publishPermissionsService}: called at `session_start` by the
+ * top-level (parent) instance only (Task 5 wires this). Overwrites any
+ * previously published service, which keeps `/reload` working.
+ */
+export function publishPermissionConfigService(
+  service: PermissionConfigService,
+): void {
+  (globalThis as Record<symbol, unknown>)[CONFIG_SERVICE_KEY] = service;
+}
+
+/**
+ * Retrieve the published `PermissionConfigService`, or `undefined` if the
+ * permission-system extension has not loaded (or has been unloaded).
+ */
+export function getPermissionConfigService():
+  | PermissionConfigService
+  | undefined {
+  return (globalThis as Record<symbol, unknown>)[CONFIG_SERVICE_KEY] as
+    | PermissionConfigService
+    | undefined;
+}
+
+/**
+ * Remove `service` from `globalThis`, but only when the current slot still
+ * holds it (identity compare-and-delete). Mirrors {@link unpublishPermissionsService}.
+ */
+export function unpublishPermissionConfigService(
+  service: PermissionConfigService,
+): void {
+  if (getPermissionConfigService() !== service) {
+    return;
+  }
+  // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- Symbol-keyed global property; Map.delete() is not applicable
+  delete (globalThis as Record<symbol, unknown>)[CONFIG_SERVICE_KEY];
 }
