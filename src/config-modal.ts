@@ -9,6 +9,7 @@ import {
   DEFAULT_EXTENSION_CONFIG,
   type PermissionSystemExtensionConfig,
 } from "./extension-config";
+import { toggleYoloConfig } from "./permission-config-service";
 import type { Ruleset } from "./rule";
 import { PanelFrame } from "./ui/panel-frame";
 
@@ -219,12 +220,6 @@ async function openSettingsModal(
   );
 }
 
-function toggleYoloMode(
-  config: PermissionSystemExtensionConfig,
-): PermissionSystemExtensionConfig {
-  return { ...config, yoloMode: !config.yoloMode };
-}
-
 function handleArgs(
   args: string,
   ctx: ExtensionCommandContext,
@@ -256,7 +251,7 @@ function handleArgs(
   }
 
   if (normalized === "yolo") {
-    const next = toggleYoloMode(controller.config.current());
+    const next = toggleYoloConfig(controller.config.current());
     const enabled = next.yoloMode;
     controller.config.save(next, ctx);
     ctx.ui.notify(
