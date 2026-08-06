@@ -9,7 +9,8 @@ No config shape or public type changes; the plan is a command-surface add to the
 
 ## Problem Statement
 
-`yoloMode` (the extension's "ask → allow" rewrite switch) currently has two toggle paths: hand-editing the config file, or opening the `/permission-system` settings modal and flipping the "YOLO mode" setting through four navigational steps. There is no one-shot way to flip it from the command line / command surface.
+`yoloMode` (the extension's "ask → allow" rewrite switch) currently has two toggle paths: hand-editing the config file, or opening the `/permission-system` settings modal and flipping the "YOLO mode" setting through four navigational steps.
+There is no one-shot way to flip it from the command line / command surface.
 
 The operator wants a single lightweight toggle entry point that can later be bound to a keyboard shortcut (binding placement is a follow-up; this plan only delivers the command capability, and the command is the reuse unit a shortcut/extension binding would call).
 
@@ -17,7 +18,8 @@ The operator wants a single lightweight toggle entry point that can later be bou
 
 - Add `/permission-system yolo` as a one-shot toggle: flips `yoloMode`, persists to the **global** config through the same `CommandConfigStore.save()` path the settings modal uses (restart-persistent), and gives immediate visible feedback.
 - Keep the toggle logic in one small pure function so it is unit-testable and reusable (a future internal `registerShortcut("ctrl+…")` or an external binding can call the same unit).
-- Do not change the config shape, schema, gate logic, `ConfigStore`, status layer, or any public type. No new args beyond `yolo` (no `on`/`off` — YAGNI; "toggle" is the agreed semantics).
+- Do not change the config shape, schema, gate logic, `ConfigStore`, status layer, or any public type.
+  No new args beyond `yolo` (no `on`/`off` — YAGNI; "toggle" is the agreed semantics).
 
 ## Changes
 
@@ -66,7 +68,8 @@ The operator wants a single lightweight toggle entry point that can later be bou
 
 ### 3. No separate docs change needed
 
-- `README.md` and `docs/configuration.md` contain no `/permission-system` command-reference section (they only document install/config paths); the command's user-facing usage text is `USAGE_TEXT`, surfaced by `/permission-system help` — and it is updated in change 1 above. Adding a standalone command-reference section is out of scope (see Non-Goals).
+- `README.md` and `docs/configuration.md` contain no `/permission-system` command-reference section (they only document install/config paths); the command's user-facing usage text is `USAGE_TEXT`, surfaced by `/permission-system help` — and it is updated in change 1 above.
+  Adding a standalone command-reference section is out of scope (see Non-Goals).
 
 ## Explicit Non-Goals
 
