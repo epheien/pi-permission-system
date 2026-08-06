@@ -66,7 +66,9 @@ export interface CommandConfigStore extends ConfigReader {
  * coupling between the class and test doubles.
  */
 export interface PermissionConfigStore extends ConfigReader {
-  saveRuntime(next: PermissionSystemExtensionConfig): PermissionSystemExtensionConfig;
+  saveRuntime(
+    next: PermissionSystemExtensionConfig,
+  ): PermissionSystemExtensionConfig;
 }
 
 /** Narrow view of the manager's resolved policy paths (for `logResolvedPaths`). */
