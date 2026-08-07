@@ -751,6 +751,130 @@ describe("BashProgram", () => {
       ]);
     });
 
+    it("descends into a substitution in a top-level variable assignment value", async () => {
+      const program = await BashProgram.parse("a=$(rm -rf foo)", normalizer);
+      expect(program.commands()).toEqual([
+        { text: "a=$(rm -rf foo)" },
+        { text: "rm -rf foo", context: "command_substitution" },
+      ]);
+    });
+
+    it("descends into a substitution in a backtick top-level assignment", async () => {
+      const program = await BashProgram.parse("a=`rm -rf foo`", normalizer);
+      expect(program.commands()).toEqual([
+        { text: "a=`rm -rf foo`" },
+        { text: "rm -rf foo", context: "command_substitution" },
+      ]);
+    });
+
+    it("descends into a substitution in a declaration_command (local/export/readonly/declare)", async () => {
+      const program = await BashProgram.parse(
+        "local a=$(rm -rf foo)",
+        normalizer,
+      );
+      expect(program.commands()).toEqual([
+        { text: "local a=$(rm -rf foo)" },
+        { text: "rm -rf foo", context: "command_substitution" },
+      ]);
+      expect(
+        (
+          await BashProgram.parse("export a=$(rm -rf foo)", normalizer)
+        ).commands(),
+      ).toEqual([
+        { text: "export a=$(rm -rf foo)" },
+        { text: "rm -rf foo", context: "command_substitution" },
+      ]);
+    });
+
+    it("descends into a substitution inside an array assignment value", async () => {
+      const program = await BashProgram.parse("a=($(rm -rf foo))", normalizer);
+      expect(program.commands()).toEqual([
+        { text: "a=($(rm -rf foo))" },
+        { text: "rm -rf foo", context: "command_substitution" },
+      ]);
+    });
+
+    it("does not emit literal array elements or arithmetic expansion as commands", async () => {
+      // Array elements without `$(…)`/backticks are strings, and `$((…))` is
+      // arithmetic — neither executes a command, so neither is promoted to a
+      // command unit (promoting them would wrongly gate harmless literals).
+      expect(
+        (await BashProgram.parse("a=(git push)", normalizer)).commands(),
+      ).toEqual([{ text: "a=(git push)" }]);
+      expect(
+        (await BashProgram.parse("a=(foo bar)", normalizer)).commands(),
+      ).toEqual([{ text: "a=(foo bar)" }]);
+      expect(
+        (await BashProgram.parse("b=$((1+2))", normalizer)).commands(),
+      ).toEqual([{ text: "b=$((1+2))" }]);
+    });
+
+    it("descends into substitutions in every top-level assignment of a chain", async () => {
+      const program = await BashProgram.parse(
+        "foo=$(rm a); bar=$(rm -rf b)",
+        normalizer,
+      );
+      expect(program.commands()).toEqual([
+        { text: "foo=$(rm a)" },
+        { text: "rm a", context: "command_substitution" },
+        { text: "bar=$(rm -rf b)" },
+        { text: "rm -rf b", context: "command_substitution" },
+      ]);
+    });
+
+    it("descends into space-separated top-level assignments (variable_assignments node)", async () => {
+      const program = await BashProgram.parse(
+        "a=$(rm a) b=$(rm -rf b)",
+        normalizer,
+      );
+      expect(program.commands()).toEqual([
+        { text: "a=$(rm a) b=$(rm -rf b)" },
+        { text: "rm a", context: "command_substitution" },
+        { text: "rm -rf b", context: "command_substitution" },
+      ]);
+    });
+
+    it("descends into a substitution inside a double-quoted assignment value", async () => {
+      const program = await BashProgram.parse('a="$(rm -rf foo)"', normalizer);
+      expect(program.commands()).toEqual([
+        { text: 'a="$(rm -rf foo)"' },
+        { text: "rm -rf foo", context: "command_substitution" },
+      ]);
+    });
+
+    it("descends into a substitution in an append-assignment (+=) value", async () => {
+      const program = await BashProgram.parse("a+=$(rm -rf foo)", normalizer);
+      expect(program.commands()).toEqual([
+        { text: "a+=$(rm -rf foo)" },
+        { text: "rm -rf foo", context: "command_substitution" },
+      ]);
+    });
+
+    it("descends into an assignment's substitution inside a subshell, chaining contexts", async () => {
+      const program = await BashProgram.parse(
+        "( a=$(rm -rf foo) )",
+        normalizer,
+      );
+      expect(program.commands()).toEqual([
+        { text: "( a=$(rm -rf foo) )" },
+        { text: "a=$(rm -rf foo)", context: "subshell" },
+        { text: "rm -rf foo", context: "command_substitution" },
+      ]);
+    });
+
+    it("descends into a substitution in declare/readonly/typeset declarations", async () => {
+      for (const kw of ["declare", "readonly", "typeset"]) {
+        const program = await BashProgram.parse(
+          `${kw} a=$(rm -rf foo)`,
+          normalizer,
+        );
+        expect(program.commands()).toEqual([
+          { text: `${kw} a=$(rm -rf foo)` },
+          { text: "rm -rf foo", context: "command_substitution" },
+        ]);
+      }
+    });
+
     it("descends into backtick command substitution", async () => {
       const program = await BashProgram.parse("echo `rm x`", normalizer);
       expect(program.commands()).toEqual([

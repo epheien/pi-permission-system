@@ -86,6 +86,11 @@ const NESTED_EXECUTION_CONTEXTS = new Map<string, BashCommandContext>([
  * subshells (`( … )`) — emitting each inner command as its own unit *in
  * addition to* the enclosing command, since those inner commands really execute
  * (#306).
+ * Top-level assignment nodes (`a=$(git push)` — `variable_assignment`, and
+ * `local a=…`/`export a=…` — `declaration_command`) get the same treatment:
+ * emitted whole plus substitutions inside the assigned value descended.
+ * Space-separated multi-assignments (`a=$(…) b=$(…)`), wrapped by
+ * tree-sitter-bash in a `variable_assignments` node, are handled identically.
  * Control-flow bodies and `{ … }` brace groups are emitted whole without
  * descending (deferred).
  *
@@ -126,6 +131,24 @@ function collectCommandsInto(
   if (node.type === "subshell") {
     out.push(makeUnit(node.text, context)); // never-weaker whole emit
     descendCommandChildren(node, "subshell", out);
+    return;
+  }
+
+  // A bare assignment (`a=$(git push)`) and a declaration_command
+  // (`local a=…`/`export a=…`) parse to their own named nodes, not a `command`
+  // node — a substitution in the assigned value would otherwise never be
+  // enumerated. Same for space-separated multi-assignments (`a=$(…)
+  // b=$(…)`), which tree-sitter-bash wraps in a plural `variable_assignments`
+  // node. Emit the assignment(s) whole (never-weaker) and additionally
+  // descend into command/process substitutions in the value(s), exactly as
+  // `command` nodes do, so an inner command (`git push`) is gated on its own.
+  if (
+    node.type === "variable_assignment" ||
+    node.type === "declaration_command" ||
+    node.type === "variable_assignments"
+  ) {
+    out.push(makeUnit(node.text, context)); // never-weaker whole emit
+    collectSubstitutionCommands(node, out);
     return;
   }
 

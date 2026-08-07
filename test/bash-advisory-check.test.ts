@@ -130,5 +130,48 @@ describe("resolveBashAdvisoryCheck", () => {
       expect(result.state).toBe("deny");
       expect(result.commandContext).toBe("command_substitution");
     });
+
+    it("decomposes a substitution inside a top-level variable assignment value", () => {
+      const resolver = makeBashResolver({
+        "a=$(git push)": makeCheckResult({
+          state: "allow",
+          toolName: "bash",
+        }),
+        "git push": makeCheckResult({
+          state: "deny",
+          toolName: "bash",
+          command: "git push",
+          matchedPattern: "git push",
+        }),
+      });
+      const result = resolveBashAdvisoryCheck(
+        "a=$(git push)",
+        undefined,
+        resolver,
+      );
+      expect(result.state).toBe("deny");
+      expect(result.command).toBe("git push");
+      expect(result.commandContext).toBe("command_substitution");
+    });
+
+    it("floors an indirection wrapper nested inside an assignment value", () => {
+      const resolver = makeBashResolver({
+        "a=$(sudo rm -rf /)": makeCheckResult({
+          state: "allow",
+          toolName: "bash",
+        }),
+        "sudo rm -rf /": makeCheckResult({
+          state: "allow",
+          toolName: "bash",
+        }),
+      });
+      const result = resolveBashAdvisoryCheck(
+        "a=$(sudo rm -rf /)",
+        undefined,
+        resolver,
+      );
+      expect(result.state).toBe("ask");
+      expect(result.matchedPattern).toBe("<indirection-bash-wrapper>");
+    });
   });
 });
