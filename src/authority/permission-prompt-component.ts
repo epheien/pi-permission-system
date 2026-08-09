@@ -227,10 +227,18 @@ class PermissionPromptComponent implements Component {
   }
 
   private toEvent(data: string): PromptEvent | undefined {
-    if (matchesKey(data, "up") || matchesKey(data, "k")) {
+    if (
+      matchesKey(data, "up") ||
+      matchesKey(data, "k") ||
+      matchesKey(data, "ctrl+p")
+    ) {
       return { type: "nav", direction: "up" };
     }
-    if (matchesKey(data, "down") || matchesKey(data, "j")) {
+    if (
+      matchesKey(data, "down") ||
+      matchesKey(data, "j") ||
+      matchesKey(data, "ctrl+n")
+    ) {
       return { type: "nav", direction: "down" };
     }
     if (matchesKey(data, "enter")) {

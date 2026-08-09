@@ -82,6 +82,9 @@ function makeFakeView(doublePressToConfirm: boolean, expandKey = CTRL_O) {
 const ARROW_DOWN = "\u001b[B";
 const ENTER = "\r";
 const ESCAPE = "\u001b";
+/** Raw legacy control bytes: Ctrl+N (down) and Ctrl+P (up), like readline. */
+const CTRL_N = "\u000e";
+const CTRL_P = "\u0010";
 
 async function runPrompt(
   doublePressToConfirm: boolean,
@@ -230,6 +233,43 @@ describe("presentInlinePermissionPrompt", () => {
         state: "denied",
       });
     });
+
+    it("moves the highlight down on ctrl+n", async () => {
+      const { view, captured } = makeFakeView(true);
+      const promise = presentInlinePermissionPrompt(
+        view,
+        "Permission Required",
+        "Allow?",
+      );
+      captured.component?.handleInput(CTRL_N);
+      const text = captured.component?.render(80).join("\n") ?? "";
+      expect(text).toContain("▶ (s)");
+      expect(text).not.toContain("▶ (y)");
+      // still interactive: enter commits the highlighted option
+      captured.component?.handleInput(ENTER);
+      expect(await promise).toEqual({
+        approved: true,
+        state: "approved_for_session",
+      });
+    });
+
+    it("moves the highlight up on ctrl+p (wrapping to the last option)", async () => {
+      const { view, captured } = makeFakeView(true);
+      void presentInlinePermissionPrompt(view, "Permission Required", "Allow?");
+      captured.component?.handleInput(CTRL_P);
+      const text = captured.component?.render(80).join("\n") ?? "";
+      expect(text).toContain("▶ (r)");
+      expect(text).not.toContain("▶ (y)");
+    });
+
+    it("keeps ctrl+n/ctrl+p as an undocumented shortcut like j/k (no hint text)", () => {
+      const { view, captured } = makeFakeView(true);
+      void presentInlinePermissionPrompt(view, "Permission Required", "Allow?");
+      const text = captured.component?.render(80).join("\n") ?? "";
+      expect(text).toContain("↑/↓ move");
+      expect(text).not.toContain("ctrl+n");
+      expect(text).not.toContain("ctrl+p");
+    });
   });
 
   describe("deny with reason", () => {
@@ -328,6 +368,13 @@ describe("presentInlinePermissionPrompt", () => {
       expect(await runPrompt(false, ["s", ARROW_DOWN, ENTER], options)).toEqual(
         { approved: true, state: "approved_for_serving_session" },
       );
+    });
+
+    it("navigates to the serving-session scope on ctrl+n", async () => {
+      expect(await runPrompt(false, ["s", CTRL_N, ENTER], options)).toEqual({
+        approved: true,
+        state: "approved_for_serving_session",
+      });
     });
   });
 
