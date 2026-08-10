@@ -32,7 +32,10 @@ const tui = {
   setShowHardwareCursor: vi.fn(),
 };
 
-function makeViewer(defaultView: "split" | "unified" = "unified") {
+function makeViewer(
+  defaultView: "split" | "unified" = "unified",
+  maxHeight?: number,
+) {
   return new DiffViewer(
     tui as never,
     theme as never,
@@ -43,6 +46,7 @@ function makeViewer(defaultView: "split" | "unified" = "unified") {
     defaultView,
     "full",
     "/",
+    maxHeight,
   );
 }
 
@@ -63,5 +67,9 @@ describe("DiffViewer(裁剪)", () => {
     for (const key of ["a", "y", "s", "r", "\u001b"]) {
       expect(v.handleInput(key)).toBe(false);
     }
+  });
+  it("maxHeight 上限裁剪不要超高", () => {
+    const v = makeViewer("unified", 12);
+    expect(v.render(80).length).toBeLessThanOrEqual(12);
   });
 });

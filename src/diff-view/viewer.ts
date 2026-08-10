@@ -355,6 +355,8 @@ export class DiffViewer implements Component {
     private readonly defaultView: DiffDefaultView = "split",
     private readonly pathStyle: PathStyle = "full",
     private readonly cwd: string = "",
+    /** viewer 自身输出行数上限;缺省时按终端可视行填满(旧行为)。 */
+    private readonly maxHeight?: number,
   ) {
     this.kb = keybindings ?? DEFAULT_KEYBINDINGS;
     this.diffBackgrounds = getDiffBackgrounds(theme, diffColorMode);
@@ -1462,14 +1464,21 @@ export class DiffViewer implements Component {
       0,
       content.hunkOffsets.length,
     );
-    const viewportHeight = Math.max(
-      4,
-      (this.tui.terminal?.rows || 24) -
-        provisionalHeaderLines.length -
-        columnLines.length -
-        footerLines.length -
-        2,
-    );
+    const terminalRows = this.tui.terminal?.rows || 24;
+    const chrome =
+      provisionalHeaderLines.length +
+      columnLines.length +
+      footerLines.length +
+      2;
+    const rowBasedViewport = Math.max(4, terminalRows - chrome);
+    // 缺省(无 maxHeight)按终端可视行填满,保留 4 行最小可用视口;
+    // 显式预算时严格不超高:bottom 锚定的 overlay 总高超过终端会被合成丢弃
+    // (决策区与下边框),故 viewportHeight 直接吃满剩余预算,预算紧张时允许
+    // 视口矮于 4 行也要保住下边框。
+    const viewportHeight =
+      this.maxHeight === undefined
+        ? rowBasedViewport
+        : Math.max(1, this.maxHeight - chrome);
     const maxScrollOffset = Math.max(0, content.lines.length - viewportHeight);
     let nextScrollOffset = this.scrollOffset;
     if (this.inlineEditMode && content.cursorOffset !== undefined) {
