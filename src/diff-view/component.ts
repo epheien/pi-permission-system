@@ -23,6 +23,7 @@ import { DiffViewer } from "./viewer.js";
 export class DiffAskComponent implements Component {
   private readonly viewer: DiffViewer;
   private readonly decisionLayer: DiffDecisionLayer;
+  private readonly tui: DiffReviewTui;
 
   constructor(
     tui: DiffReviewTui,
@@ -31,6 +32,7 @@ export class DiffAskComponent implements Component {
     input: DiffReviewInput,
     private readonly done: (d: DiffReviewDecision) => void,
   ) {
+    this.tui = tui;
     this.viewer = new DiffViewer(
       tui,
       theme,
@@ -65,8 +67,10 @@ export class DiffAskComponent implements Component {
       return;
     }
     if (result.kind === "consumed") {
+      this.tui.requestRender();
       return;
     }
     this.viewer.handleInput(data);
+    this.tui.requestRender();
   }
 }

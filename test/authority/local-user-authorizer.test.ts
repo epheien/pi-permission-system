@@ -293,3 +293,84 @@ describe("LocalUserAuthorizer", () => {
     expect(result).toEqual(decision);
   });
 });
+
+describe("LocalUserAuthorizer diff view", () => {
+  it("uses the diff view for a local write ask and returns the approved decision", async () => {
+    const { deps, ui, decisionFn } = makeDeps();
+    let resolve: ((d: unknown) => void) | undefined;
+    ui.custom.mockImplementation(
+      (_factory: unknown, _options: unknown) =>
+        new Promise((r) => {
+          resolve = r;
+        }),
+    );
+    const authorizer = new LocalUserAuthorizer(deps);
+
+    const promise = authorizer.authorize(
+      makeDetails({
+        toolName: "write",
+        toolInput: { path: "/test/project/new.txt", content: "hello\n" },
+      }),
+    );
+
+    expect(decisionFn).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(ui.custom).toHaveBeenCalledTimes(1));
+
+    const build = ui.custom.mock.calls[0]?.[0] as (
+      tui: unknown,
+      theme: unknown,
+      keybindings: unknown,
+      done: (d: unknown) => void,
+    ) => {
+      render(width: number): string[];
+      invalidate(): void;
+      handleInput(data: string): void;
+    };
+    const fakeTheme = {
+      fg: (_c: string, t: string) => t,
+      bg: (_c: string, t: string) => t,
+      bold: (t: string) => t,
+      getBgAnsi: () => "",
+    };
+    const fakeTui = { requestRender: vi.fn() };
+    const component = build(
+      fakeTui,
+      fakeTheme,
+      { matches: () => false },
+      resolve ?? (() => {}),
+    );
+
+    const text = component.render(80).join("\n");
+    expect(text).toContain("hello");
+    expect(text).toContain("(y) Yes");
+
+    component.handleInput("y");
+    component.handleInput("y");
+    expect(await promise).toEqual({ approved: true, state: "approved" });
+  });
+
+  it("falls back to requestPermissionDecision when toolDiffPrompt is off", async () => {
+    const { deps, decisionFn } = makeDeps();
+    deps.getConfig = () => ({
+      ...DEFAULT_EXTENSION_CONFIG,
+      toolDiffPrompt: false,
+    });
+    const authorizer = new LocalUserAuthorizer(deps);
+
+    await authorizer.authorize(
+      makeDetails({ toolName: "write", toolInput: {} }),
+    );
+
+    expect(decisionFn).toHaveBeenCalled();
+  });
+
+  it("does not use the diff view for a non-write/edit tool (read)", async () => {
+    const { deps, ui, decisionFn } = makeDeps();
+    const authorizer = new LocalUserAuthorizer(deps);
+
+    await authorizer.authorize(makeDetails({ toolName: "read" }));
+
+    expect(decisionFn).toHaveBeenCalled();
+    expect(ui.custom).not.toHaveBeenCalled();
+  });
+});
