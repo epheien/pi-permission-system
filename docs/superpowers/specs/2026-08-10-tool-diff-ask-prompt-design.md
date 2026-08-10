@@ -143,7 +143,8 @@ toolDiffDefaultView: "split" | "unified" // 默认 "unified"
 
 ## 9. 回退与安全
 
-- 回退文本 prompt 的情形:非 `"tui"` 模式、非 write/edit、`toolDiffPrompt=false`、preview 计算失败(二进制/图片、edit oldText 找不到、文件不可读、路径异常)、转发 ask(无 toolInput)。
+- 回退文本 prompt 的情形:非 `"tui"` 模式、非 write/edit、`toolDiffPrompt=false`、转发 ask(无 toolInput)。
+- **preview 计算失败(二进制/图片、edit oldText 找不到、文件不可读、路径异常)→ 不回退文本,在 diff 视图内渲染警告行**(如"Binary diff preview unavailable…"),用户仍可决策。此为 2026-08-10 用户裁决(决策 A):保留"为什么不能预览"的上下文,与 pi-show-diffs 原味一致,故 `computeChangePreview` 对 write/edit 从不返回 null(以带 `previewError` 的 preview 呈现);`preview_unavailable` 仅作防御性分支保留(类型上不可达,`DiffToolName` 限定 write/edit)。
 - **不落日志**:diff 内容只在 UI 展示;review log 沿用现有 `getToolInputPreviewForLog`(序列化 input 预览)。`writeReviewEntry` 按白名单取字段,新增 `toolInput` 不会自动写入日志。
 - yolo 下 ask→allow 直接放行,不经过 prompt、不弹 diff。
 

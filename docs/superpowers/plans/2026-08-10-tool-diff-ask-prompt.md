@@ -19,6 +19,7 @@
 - 移植来源 `~/wsp/pi-show-diffs` 为本机仓库,移植以该仓库当前内容为准;统一改 import 后缀与模块风格,`pnpm run check`/`lint`/`test` 全绿。
 - 不做:内联编辑、auto-approve、steer、`hashline_edit`、非 TUI 内 diff 流程、转发 wire 改动(M2)。
 - 默认视图 `unified`(非 split);`Tab` 运行时切换;窄终端回退 unified(移植源已内置)。
+- **§9 修订(2026-08-10 用户裁决 A)**:preview 计算失败(二进制/缺文件/不可读)不触发文本回退,而是在 diff 视图内渲染警告行;`computeChangePreview` 对 write/edit 返回带 `previewError` 的 preview(从不 null),`preview_unavailable` 仅防御性保留(T5 已实现)。T8 据此无需 text 回退分支(仍可保留防御)。
 
 ## File Structure
 
@@ -1303,6 +1304,6 @@ git commit -m "docs(pi-permission-system): 文档化 write/edit ask 的交互 di
 
 ## Self-Review
 
-- **Spec coverage:** §3 架构 → T1-T5/T8;§4 接口 → T4/T5;§5 键位 → T4(查看)+ T8(决策),**n 键冲突已按 Global Constraints 修正(Esc 拒绝,n 归 hunk)**;§6 数据流 → T7/T8;§8 配置 → T6;§7 M1/M2 → M1 本计划、M2 范围外;§9 回退 → T8 `shouldUseDiff` + `presentDiff` 的 `preview_unavailable` 回退;§10 测试 → 各 Task;§11 文档 → T6/T9。
+- **Spec coverage:** §3 架构 → T1-T5/T8;§4 接口 → T4/T5;§5 键位 → T4(查看)+ T8(决策),**n 键冲突已按 Global Constraints 修正(Esc 拒绝,n 归 hunk)**;§6 数据流 → T7/T8;§8 配置 → T6;§7 M1/M2 → M1 本计划、M2 范围外;§9 回退 → T8 `shouldUseDiff` 决定是否走 diff;preview 失败在 diff 视图内嵌警告呈现(用户裁决 A,`preview_unavailable` 仅防御);§10 测试 → 各 Task;§11 文档 → T6/T9。
 - **Placeholder scan:** Task 5/8 的"接线契约/行模板锚点"均为指向既有代码(`permission-prompt-component.ts`/`presentInlinePermissionPrompt`)的明确指令,非 TBD;Task 8 的 UI 接线已定实为 `this.deps.ui.custom<DiffReviewDecision>(…)`,无"二选一"遗留。
 - **Type consistency:** `DiffReviewDecision`(approve/approve_for_session/deny/preview_unavailable)= T5 定义、T8 映射(`toDiffDecision`/`mapDiffDecision` 双向);`DecisionLayerResult`/`DiffDecisionLayer` = T5 定义、T8 `DiffPromptDecisionLayer` 实现;`toolInput?: unknown` = T7 定义、T8 消费;`toolDiffPrompt`/`toolDiffDefaultView` = T6 定义、T8 读取(`?? true`/`?? "unified"` 与改准 Input 一致);`DiffViewer.viewMode()` = T4 产物、T4 测试消费;`shouldUseDiff` 三参数签名在 T8 Step1 与 Step3 完全一致。
