@@ -220,6 +220,20 @@ export const unifiedConfigSchema = z
         "TUI keyboard shortcut that toggles YOLO mode, as a pi `KeyId` string (e.g. `ctrl+alt+y`, `ctrl+shift+y`).\n\n- **Absent** → the default `ctrl+alt+y` is used.\n- **Blank** → the shortcut is disabled (nothing is registered).\n- **Malformed** → ignored (nothing is registered; never a silently-different binding).\n\nOnly the interactive **TUI** dispatches extension shortcuts; headless runs use `/permission-system yolo` or the `getPermissionConfigService().toggleYoloMode()` API.",
       default: "ctrl+alt+y",
     }),
+    toolDiffPrompt: z.boolean().optional().meta({
+      description:
+        "When true and the tool is write or edit, ask prompts render an interactive diff view. Defaults to true.",
+      markdownDescription:
+        "Whether ask prompts for `write`/`edit` render an interactive diff view. Default: `true`. Set `false` to fall back to the plain text prompt.",
+      default: true,
+    }),
+    toolDiffDefaultView: z.enum(["split", "unified"]).optional().meta({
+      description:
+        "View the diff opens in by default. Defaults to unified; Tab still toggles at runtime.",
+      markdownDescription:
+        "Default diff view. `unified` (default) or `split`; `Tab` toggles at runtime.",
+      default: "unified",
+    }),
     permission: permissionSchema.optional(),
     subagentPermission: permissionSchema.optional().meta({
       description:

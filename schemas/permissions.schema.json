@@ -71,6 +71,19 @@
       "default": "ctrl+alt+y",
       "type": "string"
     },
+    "toolDiffPrompt": {
+      "description": "When true and the tool is write or edit, ask prompts render an interactive diff view. Defaults to true.",
+      "markdownDescription": "Whether ask prompts for `write`/`edit` render an interactive diff view. Default: `true`. Set `false` to fall back to the plain text prompt.",
+      "default": true,
+      "type": "boolean"
+    },
+    "toolDiffDefaultView": {
+      "description": "View the diff opens in by default. Defaults to unified; Tab still toggles at runtime.",
+      "markdownDescription": "Default diff view. `unified` (default) or `split`; `Tab` toggles at runtime.",
+      "default": "unified",
+      "type": "string",
+      "enum": ["split", "unified"]
+    },
     "permission": {
       "type": "object",
       "propertyNames": {

@@ -108,6 +108,8 @@ This clamp is deny-preserving and, like `yoloMode`, applied at composition; when
 | `piInfrastructureReadPaths` | `[]`    | Extra directories to auto-allow for reads, bypassing the `external_directory` gate. Supports `~`/`$HOME` expansion and wildcard patterns (`*`, `?`).                                               |
 | `authorizerChain`           | `[]`    | Ordered names of registered live-authority chain links to consult before the terminal authorizer (see [Authorizer chain](#authorizer-chain--case-by-case-decision-links)).                         |
 | `yoloModeShortcut`          | `ctrl+alt+y` | TUI shortcut that toggles YOLO mode, as a pi `KeyId` (e.g. `ctrl+shift+y`). Blank (`""`) disables the shortcut; a malformed value is ignored (nothing is registered). Absent uses the default.     |
+| `toolDiffPrompt`            | `true`  | When `true` (default), an `ask` for `write` or `edit` in a TUI session renders an interactive diff view of the proposed change instead of a plain text prompt. Set `false` to fall back to the plain text prompt. |
+| `toolDiffDefaultView`       | `unified` | Default view the interactive diff opens in: `unified` (default) or `split`. `Tab` toggles at runtime; narrow terminals always fall back to `unified`. |
 
 Both logs write to `~/.pi/agent/extensions/pi-permission-system/logs/`.
 No debug output is printed to the terminal.
@@ -132,6 +134,15 @@ It only toggles the display — it never resolves, commits, or arms the pending 
 While you are typing a denial reason it is not intercepted, so a rebound printable key still reaches the reason editor.
 
 Non-TUI contexts (RPC / frontend-driven sessions) keep the single-select prompt and are unaffected by `doublePressToConfirm`.
+
+### Interactive diff view for `write`/`edit` asks
+
+When `toolDiffPrompt` is enabled (default) and a `write` or `edit` tool call needs a decision in a **TUI** session, the permission dialog renders an interactive **diff view** of the proposed file change (side-by-side `split` or single-column `unified`) above the approval keys, so you can see exactly what will change before deciding.
+
+- Default view is `unified`; press `Tab` to toggle between `unified` and `split`. Narrow terminals always fall back to `unified`.
+- Diff navigation keys scroll and jump between hunks while the diff is focused; the approval keys (`y`/`s`/`n`/`r`, `Enter`/`Esc`, plus `doublePressToConfirm`) behave as above.
+- `toolDiffPrompt: false` disables the diff view and returns to the plain text prompt for all tools.
+- The diff is rendered in the TUI only and is never written to the review log.
 
 ### `piInfrastructureReadPaths` patterns
 

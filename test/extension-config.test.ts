@@ -198,6 +198,28 @@ describe("normalizePermissionSystemConfig", () => {
   });
 });
 
+describe("toolDiffPrompt config", () => {
+  it("carries toolDiffPrompt when provided", () => {
+    expect(
+      normalizePermissionSystemConfig({ toolDiffPrompt: false }).toolDiffPrompt,
+    ).toBe(false);
+  });
+  it("omits toolDiffPrompt when absent", () => {
+    expect("toolDiffPrompt" in normalizePermissionSystemConfig({})).toBe(false);
+  });
+  it("carries toolDiffDefaultView when provided", () => {
+    expect(
+      normalizePermissionSystemConfig({ toolDiffDefaultView: "split" })
+        .toolDiffDefaultView,
+    ).toBe("split");
+  });
+  it("omits toolDiffDefaultView when absent", () => {
+    expect("toolDiffDefaultView" in normalizePermissionSystemConfig({})).toBe(
+      false,
+    );
+  });
+});
+
 describe("ensurePermissionSystemLogsDirectory", () => {
   let baseDir: string;
 

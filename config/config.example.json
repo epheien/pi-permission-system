@@ -5,6 +5,7 @@
   "permissionReviewLog": true,
   "doublePressToConfirm": true,
   "yoloModeShortcut": "ctrl+alt+y",
+  "toolDiffDefaultView": "unified",
 
   "toolInputPreviewMaxLength": 400,
   "toolTextSummaryMaxLength": 120,

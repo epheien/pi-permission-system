@@ -33,6 +33,10 @@ export interface PermissionSystemExtensionConfig {
    * Absent → default `ctrl+alt+y`; blank (`""`) → no shortcut.
    */
   yoloModeShortcut?: string;
+  /** Ask 中 write/edit 渲染交互式 diff;缺省 true。 */
+  toolDiffPrompt?: boolean;
+  /** diff 默认视图;缺省 "unified"。 */
+  toolDiffDefaultView?: "split" | "unified";
 }
 
 export const DEFAULT_EXTENSION_CONFIG: PermissionSystemExtensionConfig = {
@@ -90,6 +94,13 @@ export function normalizePermissionSystemConfig(
   }
   if (raw.yoloModeShortcut !== undefined) {
     result.yoloModeShortcut = raw.yoloModeShortcut;
+  }
+  if (raw.toolDiffPrompt !== undefined) {
+    result.toolDiffPrompt = raw.toolDiffPrompt;
+  }
+  if (raw.toolDiffDefaultView !== undefined) {
+    result.toolDiffDefaultView =
+      raw.toolDiffDefaultView === "split" ? "split" : "unified";
   }
   return result;
 }
