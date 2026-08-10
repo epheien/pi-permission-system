@@ -431,6 +431,28 @@ export function detectPermissiveBashFallback(
 }
 
 /**
+ * Read a unified config file as a raw JSON value (comments stripped) with NO
+ * schema validation.
+ *
+ * Returns `null` when the file is absent or cannot be parsed. Unlike
+ * {@link loadUnifiedConfig} this does not reject on unknown keys or invalid
+ * values — it is used by config persistence so a knob toggle preserves the
+ * permission policy and any foreign keys verbatim instead of progressively
+ * wiping them when a newer/older build disagrees with the schema.
+ */
+export function readRawUnifiedConfig(path: string): unknown {
+  if (!existsSync(path)) {
+    return null;
+  }
+  try {
+    const raw = readFileSync(path, "utf-8");
+    return JSON.parse(stripJsonComments(raw)) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Load and normalize a unified config file.
  * Returns an empty config with no issues if the file does not exist.
  * Returns an empty config with an issue if the file cannot be parsed.

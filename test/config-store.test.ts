@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   mockLoadAndMergeConfigs,
   mockLoadUnifiedConfig,
+  mockReadRawUnifiedConfig,
   mockSyncPermissionSystemStatus,
   mockBuildResolvedConfigLogEntry,
   mockExistsSync,
@@ -15,6 +16,7 @@ const {
 } = vi.hoisted(() => ({
   mockLoadAndMergeConfigs: vi.fn(),
   mockLoadUnifiedConfig: vi.fn(),
+  mockReadRawUnifiedConfig: vi.fn(),
   mockSyncPermissionSystemStatus: vi.fn(),
   mockBuildResolvedConfigLogEntry: vi.fn(),
   mockExistsSync: vi.fn<(path: string) => boolean>(),
@@ -27,6 +29,7 @@ const {
 vi.mock("../src/config-loader", () => ({
   loadAndMergeConfigs: mockLoadAndMergeConfigs,
   loadUnifiedConfig: mockLoadUnifiedConfig,
+  readRawUnifiedConfig: mockReadRawUnifiedConfig,
 }));
 
 vi.mock("../src/status", () => ({
@@ -138,6 +141,7 @@ describe("ConfigStore", () => {
       issues: [],
     });
     mockLoadUnifiedConfig.mockReset().mockReturnValue({ config: {} });
+    mockReadRawUnifiedConfig.mockReset().mockReturnValue(null);
     mockSyncPermissionSystemStatus.mockReset();
     mockBuildResolvedConfigLogEntry
       .mockReset()
@@ -325,8 +329,8 @@ describe("ConfigStore", () => {
   describe("save()", () => {
     it("writes merged config to the global path", () => {
       const { store } = makeStore();
-      mockLoadUnifiedConfig.mockReturnValue({
-        config: { permission: { "*": "ask" } },
+      mockReadRawUnifiedConfig.mockReturnValue({
+        permission: { "*": "ask" },
       });
       const next = { ...DEFAULT_EXTENSION_CONFIG, debugLog: true };
       const ctx = makeCommandCtx();
@@ -400,8 +404,8 @@ describe("ConfigStore", () => {
     it("preserves an existing global toolInputPreviewMaxLength on save", () => {
       const { store } = makeStore();
       // Simulate a global config.json that already has the preview-length field.
-      mockLoadUnifiedConfig.mockReturnValue({
-        config: { toolInputPreviewMaxLength: 800 },
+      mockReadRawUnifiedConfig.mockReturnValue({
+        toolInputPreviewMaxLength: 800,
       });
       store.save({ ...DEFAULT_EXTENSION_CONFIG }, makeCommandCtx());
       expect(mockWriteFileSync).toHaveBeenCalledWith(
@@ -414,8 +418,8 @@ describe("ConfigStore", () => {
     it("preserves an existing global piInfrastructureReadPaths on save", () => {
       const { store } = makeStore();
       // Simulate a global config.json that already has the infra-paths field.
-      mockLoadUnifiedConfig.mockReturnValue({
-        config: { piInfrastructureReadPaths: ["/extra/path"] },
+      mockReadRawUnifiedConfig.mockReturnValue({
+        piInfrastructureReadPaths: ["/extra/path"],
       });
       store.save({ ...DEFAULT_EXTENSION_CONFIG }, makeCommandCtx());
       expect(mockWriteFileSync).toHaveBeenCalledWith(
@@ -431,8 +435,8 @@ describe("ConfigStore", () => {
   describe("saveRuntime()", () => {
     it("persists via tmp write + rename and returns the normalized config", () => {
       const { store } = makeStore();
-      mockLoadUnifiedConfig.mockReturnValue({
-        config: { permission: { "*": "ask" } },
+      mockReadRawUnifiedConfig.mockReturnValue({
+        permission: { "*": "ask" },
       });
       const next = { ...DEFAULT_EXTENSION_CONFIG, debugLog: true };
       const result = store.saveRuntime(next);
@@ -473,6 +477,40 @@ describe("ConfigStore", () => {
         "config.saved",
         expect.anything(),
       );
+    });
+
+    it("keeps the permission policy and unknown keys when the existing file is schema-invalid (no data loss on a knob toggle)", () => {
+      const { store } = makeStore();
+      mockReadRawUnifiedConfig.mockReturnValue({
+        permission: { "*": "allow", edit: "ask" },
+        futureField: 1,
+        yoloMode: false,
+      });
+      store.saveRuntime({ ...DEFAULT_EXTENSION_CONFIG, yoloMode: true });
+      expect(mockWriteFileSync).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.stringContaining('"permission"'),
+        "utf-8",
+      );
+      expect(mockWriteFileSync).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.stringContaining('"futureField": 1'),
+        "utf-8",
+      );
+      expect(mockWriteFileSync).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.stringContaining('"yoloMode": true'),
+        "utf-8",
+      );
+    });
+
+    it("refuses to overwrite when the existing file is present but not a config object (fail closed, no wipe)", () => {
+      const { store } = makeStore();
+      mockReadRawUnifiedConfig.mockReturnValue([1, 2, 3]);
+      expect(() =>
+        store.saveRuntime({ ...DEFAULT_EXTENSION_CONFIG, yoloMode: true }),
+      ).toThrow(/Refusing to overwrite/);
+      expect(mockWriteFileSync).not.toHaveBeenCalled();
     });
 
     it("does not call syncPermissionSystemStatus (no ctx dependency)", () => {

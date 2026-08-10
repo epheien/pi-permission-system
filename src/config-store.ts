@@ -11,7 +11,7 @@ import type {
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 
-import { loadAndMergeConfigs, loadUnifiedConfig } from "./config-loader";
+import { loadAndMergeConfigs, readRawUnifiedConfig } from "./config-loader";
 import {
   getGlobalConfigPath,
   getLegacyExtensionConfigPath,
@@ -162,13 +162,30 @@ export class ConfigStore
     const normalized = normalizePermissionSystemConfig(next);
     const globalPath = getGlobalConfigPath(this.deps.agentDir);
 
-    const existing = loadUnifiedConfig(globalPath);
-    const merged = {
-      ...existing.config,
-      debugLog: normalized.debugLog,
-      permissionReviewLog: normalized.permissionReviewLog,
-      yoloMode: normalized.yoloMode,
+    // Base the write on the RAW config file, not the schema-validated
+    // loadUnifiedConfig result: the validated result is `{}` whenever the file
+    // carries a key this build rejects (a newer field read by an older
+    // extension, a typo, …), and spreading that would rewrite the file down to
+    // just the runtime knobs — silently destroying the user's permission
+    // policy. Spreading the raw object preserves unknown keys verbatim.
+    const existingRaw = readRawUnifiedConfig(globalPath);
+    const isObject =
+      typeof existingRaw === "object" &&
+      existingRaw !== null &&
+      !Array.isArray(existingRaw);
+    if (existingRaw !== null && !isObject) {
+      // A present file that is not a config object may be corrupt or a foreign
+      // format — never destroy it just to persist a knob toggle.
+      throw new Error(
+        `Refusing to overwrite config at '${globalPath}': the file exists but is not a JSON config object.`,
+      );
+    }
+    const merged: Record<string, unknown> = {
+      ...(isObject ? (existingRaw as Record<string, unknown>) : {}),
     };
+    merged.debugLog = normalized.debugLog;
+    merged.permissionReviewLog = normalized.permissionReviewLog;
+    merged.yoloMode = normalized.yoloMode;
 
     const tmpPath = `${globalPath}.tmp`;
     try {

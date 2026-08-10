@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Subagent extension runtime artifacts (written into cwd on runs)
+.pi-subagents/
+
 # Logs
 *.log
 logs/
