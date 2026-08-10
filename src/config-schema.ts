@@ -175,9 +175,9 @@ export const unifiedConfigSchema = z
     }),
     yoloMode: z.boolean().optional().meta({
       description:
-        "Auto-approve ask-state permission checks, including subagent approval forwarding.",
+        "Process-lifetime YOLO state — in-memory only, never persisted to this file. Accepted for backward compatibility; the value here is ignored.",
       markdownDescription:
-        "Auto-approve `ask`-state permission checks, including subagent approval forwarding.\n\n⚠️ **Use with caution** — this disables all interactive confirmation prompts.",
+        "Auto-approve `ask`-state checks, including subagent approval forwarding.\n\n⚠️ **Use with caution** — this disables all interactive confirmation prompts until you quit Pi.\n\nYOLO is an **in-memory, process-lifetime toggle**: once enabled it stays on across session switches, config reloads, and agent turns, and resets only when the **Pi process exits** (restarting naturally starts with it **off**). It is never persisted to config. Toggle it with the `yoloModeShortcut` hotkey (default `ctrl+alt+y`) or `/permission-system yolo`. A `yoloMode` value written in this file is accepted only for backward compatibility and **ignored** — it does not enable YOLO on startup.",
       default: false,
     }),
     doublePressToConfirm: z.boolean().optional().meta({

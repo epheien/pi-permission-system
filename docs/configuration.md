@@ -55,7 +55,6 @@ This clamp is deny-preserving and, like `yoloMode`, applied at composition; when
   // Runtime knobs
   "debugLog": false,
   "permissionReviewLog": true,
-  "yoloMode": false,
   "doublePressToConfirm": true,
   "toolInputPreviewMaxLength": 400,
   "toolTextSummaryMaxLength": 120,
@@ -102,7 +101,7 @@ This clamp is deny-preserving and, like `yoloMode`, applied at composition; when
 | --------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `debugLog`                  | `false` | Enables verbose diagnostic logging to `logs/pi-permission-system-debug.jsonl`                                                                                                                      |
 | `permissionReviewLog`       | `true`  | Enables the permission request/denial review log at `logs/pi-permission-system-permission-review.jsonl`. Records bash command strings verbatim — see [Log file sensitivity](#log-file-sensitivity) |
-| `yoloMode`                  | `false` | Auto-approves `ask` results instead of prompting when yolo mode is enabled                                                                                                                         |
+| `yoloMode`                  | `false` | Auto-approves `ask` results instead of prompting when yolo mode is enabled. **In-memory, process-lifetime toggle** — never persisted; stays on until you quit Pi, then resets. A value in the config file is ignored (backward-compat only). |
 | `doublePressToConfirm`      | `true`  | Requires a confirming second press of a decision hotkey in the overlay TUI dialog (see below). TUI sessions only; set to `false` for single-press.                                                  |
 | `toolInputPreviewMaxLength` | `200`   | Max characters of inline JSON shown in permission prompts for tool inputs. Omit to use the default. Set to a large value to disable truncation.                                                    |
 | `toolTextSummaryMaxLength`  | `80`    | Max characters of inline pattern/path summaries (grep patterns, find globs, ls paths) in permission prompts. Omit to use the default.                                                              |
@@ -748,7 +747,7 @@ A subagent's `ask` is **forwarded** to the parent for a human decision (a subage
 
 ### YOLO mode
 
-`subagentPermission` does **not** bypass YOLO mode: `yoloMode` is a session-local ask→allow bypass, and with it enabled this session's non-denied `ask` never prompts in any agent (subagents included). YOLO resets to off every fresh session, so simply don't enable this session's yolo (hotkey or `/permission-system yolo`) when you want subagents to actually prompt.
+`subagentPermission` does **not** bypass YOLO mode: `yoloMode` is an ask→allow bypass that stays on for the lifetime of the Pi process, and with it enabled this process's non-denied `ask` never prompts in any agent (subagents included). YOLO resets only when the Pi process exits (it is never persisted), so simply don't enable yolo (hotkey or `/permission-system yolo`) for this process when you want subagents to actually prompt.
 
 ---
 

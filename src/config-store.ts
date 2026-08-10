@@ -29,6 +29,36 @@ import type { ResolvedPolicyPaths } from "./policy-loader";
 import type { DebugReviewLogger } from "./session-logger";
 import { syncPermissionSystemStatus } from "./status";
 
+/**
+ * Process-global YOLO state slot.
+ *
+ * `Symbol.for()` is process-global by spec, so it survives jiti's per-extension
+ * module isolation (`moduleCache: false`) and a `/reload` that rebuilds the
+ * whole extension: the fresh ConfigStore reads the same `globalThis` slot the
+ * previous generation wrote. YOLO is deliberately NOT stored in config.json —
+ * it is an in-memory, process-lifetime toggle: once enabled it stays on across
+ * session switches, config reloads, and agent turns, and resets only when the
+ * process exits (a restart naturally starts non-YOLO).
+ */
+const YOLO_STATE_KEY = Symbol.for("@gotgenes/pi-permission-system:yolo-state");
+
+function readProcessYoloState(): boolean {
+  return (globalThis as Record<symbol, unknown>)[YOLO_STATE_KEY] === true;
+}
+
+function writeProcessYoloState(value: boolean): void {
+  (globalThis as Record<symbol, unknown>)[YOLO_STATE_KEY] = value;
+}
+
+/**
+ * Clear the process-global YOLO slot — test-only seam so a test file's
+ * instances start from a known non-YOLO state.
+ */
+export function resetProcessYoloState(): void {
+  // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- Symbol-keyed global property; Map.delete() is not applicable
+  delete (globalThis as Record<symbol, unknown>)[YOLO_STATE_KEY];
+}
+
 /** Read-only view of the current config — for consumers that only read. */
 export interface ConfigReader {
   current(): PermissionSystemExtensionConfig;
@@ -124,10 +154,16 @@ export class ConfigStore
       { includeProjectScope: projectTrusted },
     );
     const runtimeConfig = normalizePermissionSystemConfig(mergeResult.merged);
-    this.config = runtimeConfig;
+    // YOLO is a process-lifetime, in-memory toggle: never adopt a persisted
+    // value (a fresh process starts non-YOLO), and preserve the in-process
+    // toggle across session/reload/agent-turn refreshes. Only process exit
+    // resets it. See {@link readProcessYoloState} for the storage seam.
+    this.config = { ...runtimeConfig, yoloMode: readProcessYoloState() };
 
     if (ctx?.hasUI) {
-      syncPermissionSystemStatus(ctx, runtimeConfig);
+      // Sync the status bar from the real in-memory toggle (this.config), not
+      // the ignored on-disk value, so YOLO stays lit across refreshes.
+      syncPermissionSystemStatus(ctx, this.config);
     }
 
     const warning =
@@ -183,9 +219,11 @@ export class ConfigStore
     const merged: Record<string, unknown> = {
       ...(isObject ? (existingRaw as Record<string, unknown>) : {}),
     };
+    // YOLO never persists: strip any legacy/stale value and never write the
+    // toggle — it lives only in this process's memory (see refresh()).
+    delete merged.yoloMode;
     merged.debugLog = normalized.debugLog;
     merged.permissionReviewLog = normalized.permissionReviewLog;
-    merged.yoloMode = normalized.yoloMode;
 
     const tmpPath = `${globalPath}.tmp`;
     try {
@@ -202,6 +240,10 @@ export class ConfigStore
       }
       throw error;
     }
+
+    // YOLO stays in memory only: keep the process-global slot in sync with the
+    // toggled value so a later refresh() re-adopts it instead of resetting.
+    writeProcessYoloState(normalized.yoloMode);
 
     this.config = normalized;
     this.lastConfigWarning = null;

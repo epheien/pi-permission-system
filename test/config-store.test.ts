@@ -65,6 +65,7 @@ import {
   ConfigStore,
   type ConfigStoreDeps,
   type ResolvedPolicyPathProvider,
+  resetProcessYoloState,
 } from "#src/config-store";
 import { DEFAULT_EXTENSION_CONFIG } from "#src/extension-config";
 import type { ResolvedPolicyPaths } from "#src/policy-loader";
@@ -136,6 +137,7 @@ function makeStore(overrides: Partial<ConfigStoreDeps> = {}): {
 
 describe("ConfigStore", () => {
   beforeEach(() => {
+    resetProcessYoloState();
     mockLoadAndMergeConfigs.mockReset().mockReturnValue({
       merged: { ...DEFAULT_EXTENSION_CONFIG },
       issues: [],
@@ -185,6 +187,39 @@ describe("ConfigStore", () => {
         expect.any(String),
         { includeProjectScope: false },
       );
+    });
+
+    it("ignores a persisted yoloMode — a fresh process starts non-YOLO", () => {
+      const { store } = makeStore();
+      mockLoadAndMergeConfigs.mockReturnValue({
+        merged: { ...DEFAULT_EXTENSION_CONFIG, yoloMode: true },
+        issues: [],
+      });
+      store.refresh(makeCtx(), true);
+      expect(store.current().yoloMode).toBe(false);
+    });
+
+    it("keeps a toggled yoloMode across refreshes — YOLO is process-lifetime", () => {
+      const { store } = makeStore();
+      store.saveRuntime({ ...DEFAULT_EXTENSION_CONFIG, yoloMode: true });
+      expect(store.current().yoloMode).toBe(true);
+      // A refresh fires on session switch, config reload, and every agent turn;
+      // none may reset the in-memory toggle.
+      store.refresh(makeCtx(), true);
+      expect(store.current().yoloMode).toBe(true);
+      store.refresh(makeCtx(), true);
+      expect(store.current().yoloMode).toBe(true);
+    });
+
+    it("inherits a toggled yoloMode in a fresh ConfigStore in the same process (e.g. /reload)", () => {
+      const { store } = makeStore();
+      store.saveRuntime({ ...DEFAULT_EXTENSION_CONFIG, yoloMode: true });
+      // Before its first refresh a brand-new store defaults to off.
+      const { store: reloaded } = makeStore();
+      expect(reloaded.current().yoloMode).toBe(false);
+      // After refresh it adopts the process-lifetime toggle, not the disk value.
+      reloaded.refresh(makeCtx(), true);
+      expect(reloaded.current().yoloMode).toBe(true);
     });
 
     it("uses empty string cwd when no ctx is provided", () => {
@@ -497,9 +532,10 @@ describe("ConfigStore", () => {
         expect.stringContaining('"futureField": 1'),
         "utf-8",
       );
+      // YOLO stays in-memory only — never persisted, even if a stale value existed.
       expect(mockWriteFileSync).toHaveBeenCalledWith(
         expect.any(String),
-        expect.stringContaining('"yoloMode": true'),
+        expect.not.stringContaining('"yoloMode"'),
         "utf-8",
       );
     });
@@ -511,6 +547,33 @@ describe("ConfigStore", () => {
         store.saveRuntime({ ...DEFAULT_EXTENSION_CONFIG, yoloMode: true }),
       ).toThrow(/Refusing to overwrite/);
       expect(mockWriteFileSync).not.toHaveBeenCalled();
+    });
+
+    it("never writes yoloMode to the file — toggles stay in memory only", () => {
+      const { store } = makeStore();
+      // Even if the on-disk file still carries a stale yoloMode, a save must
+      // strip it rather than persist a toggle.
+      mockReadRawUnifiedConfig.mockReturnValue({
+        permission: { "*": "ask" },
+        yoloMode: true,
+      });
+      store.saveRuntime({ ...DEFAULT_EXTENSION_CONFIG, yoloMode: true });
+      expect(mockWriteFileSync).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.not.stringContaining('"yoloMode"'),
+        "utf-8",
+      );
+    });
+
+    it("keeps the toggled yoloMode in memory (current()) without persisting it", () => {
+      const { store } = makeStore();
+      expect(store.current().yoloMode).toBe(false);
+      const result = store.saveRuntime({
+        ...DEFAULT_EXTENSION_CONFIG,
+        yoloMode: true,
+      });
+      expect(result.yoloMode).toBe(true);
+      expect(store.current().yoloMode).toBe(true);
     });
 
     it("does not call syncPermissionSystemStatus (no ctx dependency)", () => {

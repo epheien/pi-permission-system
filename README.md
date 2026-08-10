@@ -24,7 +24,10 @@ Permission enforcement extension for the [Pi](https://pi.mariozechner.at/) codin
 - **Subagent default policy** — an optional `subagentPermission` map gives every subagent (non-main) session its own policy layer (e.g. `write`/`edit` → `ask`) without touching the main agent's config; precedence is `main` → `subagentPermission` → per-agent frontmatter, and the parent enforces it when the subagent forwards its ask (a subagent's `write`/`edit` prompts even though the main map allows)
 - **Broadcasts UI prompt events** — `permissions:ui_prompt` fires only when the permission system is about to invoke the active user-facing permission UI
 - **Native [`@gotgenes/pi-subagents`](https://github.com/gotgenes/pi-subagents) integration** — in-process child sessions register with the permission system automatically, enabling per-agent policy enforcement and `ask`-state forwarding to the parent UI without configuration
-- **Public YOLO-mode config service** — `getPermissionConfigService()` reads and toggles YOLO mode, a configurable TUI shortcut (default `ctrl+alt+y`, set `yoloModeShortcut` in `config.json` or use `""` to disable) toggles it anytime, and `/permission-system yolo` is the headless/CLI path
+- **Public YOLO-mode config service** — `getPermissionConfigService()` reads and toggles YOLO mode.
+  A configurable TUI shortcut (default `ctrl+alt+y`, set `yoloModeShortcut` in `config.json` or use `""` to disable) toggles it anytime, and `/permission-system yolo` is the headless/CLI path.
+  YOLO is **process-lifetime** — an in-memory toggle that is never persisted.
+  Once enabled it stays on until you quit Pi (restarting starts with it off).
 
 ## Install
 

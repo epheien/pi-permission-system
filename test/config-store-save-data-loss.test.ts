@@ -20,7 +20,7 @@ import { dirname, join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import { getGlobalConfigPath } from "#src/config-paths";
-import { ConfigStore } from "#src/config-store";
+import { ConfigStore, resetProcessYoloState } from "#src/config-store";
 import { DEFAULT_EXTENSION_CONFIG } from "#src/extension-config";
 
 function makeLogger() {
@@ -75,7 +75,7 @@ describe("ConfigStore.saveRuntime — must never wipe config (real fs)", () => {
       >;
       expect(after.permission).toEqual({ "*": "allow", edit: "ask" });
       expect(after.unknownFutureKey).toEqual({ a: 1 });
-      expect(after.yoloMode).toBe(true);
+      expect(after).not.toHaveProperty("yoloMode");
     } finally {
       rmSync(agentDir, { recursive: true, force: true });
     }
@@ -100,7 +100,7 @@ describe("ConfigStore.saveRuntime — must never wipe config (real fs)", () => {
         unknown
       >;
       expect(after.permission).toEqual({ "*": "ask", write: "allow" });
-      expect(after.yoloMode).toBe(false);
+      expect(after).not.toHaveProperty("yoloMode");
     } finally {
       rmSync(agentDir, { recursive: true, force: true });
     }
@@ -119,6 +119,49 @@ describe("ConfigStore.saveRuntime — must never wipe config (real fs)", () => {
       ).toThrow(/Refusing to overwrite/);
       // File untouched.
       expect(JSON.parse(readFileSync(configPath, "utf-8"))).toEqual([1, 2, 3]);
+    } finally {
+      rmSync(agentDir, { recursive: true, force: true });
+    }
+  });
+
+  it("toggling YOLO never persists it and it survives until the process exits", () => {
+    const agentDir = mkdtempSync(join(tmpdir(), "ps-cfg-yoloproc-"));
+    try {
+      // Simulate a pre-existing config that still carries yoloMode: true.
+      writeConfig(agentDir, {
+        permission: { "*": "allow", edit: "ask" },
+        yoloMode: true,
+      });
+      const configPath = getGlobalConfigPath(agentDir);
+
+      const store = makeStore(agentDir);
+      const result = store.saveRuntime({
+        ...DEFAULT_EXTENSION_CONFIG,
+        yoloMode: true,
+      });
+      expect(result.yoloMode).toBe(true); // in-memory toggle applied
+      expect(store.current().yoloMode).toBe(true);
+
+      // The file must NOT carry yoloMode, and the permission map survives.
+      const onDisk = JSON.parse(readFileSync(configPath, "utf-8")) as Record<
+        string,
+        unknown
+      >;
+      expect(onDisk).not.toHaveProperty("yoloMode");
+      expect(onDisk.permission).toEqual({ "*": "allow", edit: "ask" });
+
+      // A fresh instance in the same process (e.g. /reload) inherits the
+      // process-lifetime toggle instead of resetting to off.
+      const reloaded = makeStore(agentDir);
+      reloaded.refresh(undefined, true);
+      expect(reloaded.current().yoloMode).toBe(true);
+
+      // Only process exit resets it — simulate a fresh process by clearing the
+      // process-global slot; a restarted Pi then starts non-YOLO again.
+      resetProcessYoloState();
+      const freshProcess = makeStore(agentDir);
+      freshProcess.refresh(undefined, true);
+      expect(freshProcess.current().yoloMode).toBe(false);
     } finally {
       rmSync(agentDir, { recursive: true, force: true });
     }
