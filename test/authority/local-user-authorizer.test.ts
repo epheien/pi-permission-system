@@ -3,6 +3,7 @@ import { LocalUserAuthorizer } from "#src/authority/local-user-authorizer";
 import type { PermissionPromptDecision } from "#src/authority/permission-dialog";
 import type { requestPermissionDecision } from "#src/authority/permission-prompt-component";
 import type { PromptPermissionDetails } from "#src/authority/permission-prompter";
+import { DEFAULT_EXTENSION_CONFIG } from "#src/extension-config";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -49,8 +50,10 @@ function makeDeps(
     deps: {
       ui,
       mode: "tui" as const,
+      cwd: "/test/project",
       events,
       getPromptPreferences: () => ({ doublePressToConfirm: true }),
+      getConfig: () => DEFAULT_EXTENSION_CONFIG,
       requestPermissionDecision: decisionFn,
     },
     events,
@@ -154,8 +157,10 @@ describe("LocalUserAuthorizer", () => {
     const authorizer = new LocalUserAuthorizer({
       ui,
       mode: "tui",
+      cwd: "/test/project",
       events,
       getPromptPreferences: () => ({ doublePressToConfirm: true }),
+      getConfig: () => DEFAULT_EXTENSION_CONFIG,
       requestPermissionDecision: decisionFn,
     });
 

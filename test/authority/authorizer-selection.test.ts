@@ -13,6 +13,7 @@ import type {
   AuthorizerVerdict,
   AuthorizerSelectionDeps as SelectionCtorDeps,
 } from "#src/authority/authorizer";
+import { selectAuthorizer } from "#src/authority/authorizer";
 import { AuthorizerRegistry } from "#src/authority/authorizer-registry";
 import { AuthorizerSelection } from "#src/authority/authorizer-selection";
 import { LocalUserAuthorizer } from "#src/authority/local-user-authorizer";
@@ -22,6 +23,7 @@ import type {
   PromptPermissionDetails,
 } from "#src/authority/permission-prompter";
 import type { SubagentDetector } from "#src/authority/subagent-detection";
+import { DEFAULT_EXTENSION_CONFIG } from "#src/extension-config";
 import type { PermissionQuery } from "#src/service";
 import { makeAuthorizerLog } from "#test/helpers/authorizer-log-fixtures";
 
@@ -112,6 +114,7 @@ function makeDeps(overrides: Partial<SelectionDeps> = {}): SelectionDeps {
     getPromptPreferences:
       overrides.getPromptPreferences ??
       (() => ({ doublePressToConfirm: true })),
+    getConfig: overrides.getConfig ?? (() => DEFAULT_EXTENSION_CONFIG),
     requestPermissionDecision:
       overrides.requestPermissionDecision ??
       vi.fn().mockResolvedValue({ approved: true, state: "approved" }),
@@ -190,6 +193,18 @@ describe("AuthorizerSelection", () => {
       const result = await selection.escalate(makeDetails());
 
       expect(result).toEqual(decision);
+    });
+
+    it("selects a LocalUserAuthorizer carrying cwd and getConfig", () => {
+      const ctx = makeCtx({ hasUI: true });
+      const deps = makeDeps();
+      const authorizer = selectAuthorizer(ctx, deps);
+      expect(authorizer).toBeInstanceOf(LocalUserAuthorizer);
+      const depsOf = (
+        authorizer as unknown as { deps: Record<string, unknown> }
+      ).deps;
+      expect(depsOf.cwd).toBe(ctx.cwd);
+      expect(depsOf.getConfig).toBe(deps.getConfig);
     });
   });
 

@@ -34,6 +34,11 @@ export interface PromptPermissionDetails {
   command?: string;
   target?: string;
   toolInputPreview?: string;
+  /**
+   * 本地 ask 的 write/edit 原始工具 input(diff before/after 计算来源)。
+   * 转发 ask 不会携带此字段(accessIntent 仅含 path facts);diff 内容不落 review log。
+   */
+  toolInput?: unknown;
   /** Override label for the "for this session" dialog option. */
   sessionLabel?: string;
   /** Explicit display-surface override (a forwarded ask carries the child's original). */

@@ -8,6 +8,7 @@ import {
 import { DenyingAuthorizer } from "#src/authority/denying-authorizer";
 import { LocalUserAuthorizer } from "#src/authority/local-user-authorizer";
 import type { SubagentDetector } from "#src/authority/subagent-detection";
+import { DEFAULT_EXTENSION_CONFIG } from "#src/extension-config";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -40,6 +41,7 @@ function makeDeps(
     getPromptPreferences:
       overrides.getPromptPreferences ??
       (() => ({ doublePressToConfirm: true })),
+    getConfig: overrides.getConfig ?? (() => DEFAULT_EXTENSION_CONFIG),
     requestPermissionDecision:
       overrides.requestPermissionDecision ??
       vi.fn().mockResolvedValue({ approved: true, state: "approved" }),

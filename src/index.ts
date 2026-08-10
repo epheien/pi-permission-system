@@ -118,6 +118,7 @@ export default function piPermissionSystemExtension(pi: ExtensionAPI): void {
     getPromptPreferences: () => ({
       doublePressToConfirm: configStore.current().doublePressToConfirm,
     }),
+    getConfig: () => configStore.current(),
     requestPermissionDecision,
     forwardingDir: paths.forwardingDir,
     registry: subagentRegistry,

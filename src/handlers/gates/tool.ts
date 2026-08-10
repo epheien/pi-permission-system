@@ -112,6 +112,9 @@ export function describeToolGate(
       toolName: tcc.toolName,
       sessionLabel: suggestion.label,
       accessIntent,
+      ...(tcc.toolName === "write" || tcc.toolName === "edit"
+        ? { toolInput: tcc.input }
+        : {}),
       ...permissionLogContext,
     },
     logContext: {

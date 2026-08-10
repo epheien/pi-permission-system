@@ -308,4 +308,35 @@ describe("describeToolGate", () => {
     expect(desc.surface).toBe("edit");
     expect(desc.input).toEqual({ path: "/a.ts" });
   });
+
+  describe("promptDetails.toolInput (write/edit only)", () => {
+    it("carries the raw input for write", () => {
+      const input = { path: "/x.txt", content: "hi" };
+      const desc = describeToolGate(
+        makeTcc({ toolName: "write", input }),
+        makeCheckResult("ask"),
+        makeFormatter(),
+      );
+      expect(desc.promptDetails?.toolInput).toEqual(input);
+    });
+
+    it("carries the raw input for edit", () => {
+      const input = { path: "/x.txt", oldText: "a", newText: "b" };
+      const desc = describeToolGate(
+        makeTcc({ toolName: "edit", input }),
+        makeCheckResult("ask"),
+        makeFormatter(),
+      );
+      expect(desc.promptDetails?.toolInput).toEqual(input);
+    });
+
+    it("omits toolInput for a non-write/edit tool", () => {
+      const desc = describeToolGate(
+        makeTcc({ toolName: "read", input: { path: "/x.txt" } }),
+        makeCheckResult("ask"),
+        makeFormatter(),
+      );
+      expect(desc.promptDetails?.toolInput).toBeUndefined();
+    });
+  });
 });

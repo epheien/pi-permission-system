@@ -8,6 +8,7 @@ import type {
   PromptPreferences,
   requestPermissionDecision,
 } from "#src/authority/permission-prompt-component";
+import type { PermissionSystemExtensionConfig } from "#src/extension-config";
 import { buildForwardedScopeLabels } from "#src/pattern-suggest";
 import {
   emitUiPromptEvent,
@@ -23,10 +24,14 @@ export interface LocalUserAuthorizerDeps {
   ui: PermissionPromptUi;
   /** The session run mode; the dispatcher renders the overlay dialog only in `"tui"`. */
   mode: ExtensionContext["mode"];
+  /** Session cwd, used for diff preview path resolution. */
+  cwd: string;
   /** Event bus used for the `permissions:ui_prompt` broadcast. */
   events: PermissionEventBus;
   /** Read live at prompt time so a settings-modal toggle takes effect on the next prompt. */
   getPromptPreferences: () => PromptPreferences;
+  /** Read live at prompt time; supplies the diff/presentation config. */
+  getConfig: () => PermissionSystemExtensionConfig;
   /** Injected for testability; production callers pass the real function. */
   requestPermissionDecision: typeof requestPermissionDecision;
 }

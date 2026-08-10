@@ -5,6 +5,7 @@ import type {
   requestPermissionDecision,
 } from "#src/authority/permission-prompt-component";
 import type { SubagentSessionRegistry } from "#src/authority/subagent-registry";
+import type { PermissionSystemExtensionConfig } from "#src/extension-config";
 import type { PermissionEventBus } from "#src/permission-events";
 import type { AuthorizerLog, PermissionQuery } from "#src/service";
 import type { DebugReviewLogger } from "#src/session-logger";
@@ -66,6 +67,8 @@ export interface AuthorizerSelectionDeps {
   events: PermissionEventBus;
   /** Read live at prompt time; threaded into `LocalUserAuthorizer`. */
   getPromptPreferences: () => PromptPreferences;
+  /** Read live at prompt time; supplies the diff/adapter presentation config. */
+  getConfig: () => PermissionSystemExtensionConfig;
   /** Injected for testability; production callers pass the real function. */
   requestPermissionDecision: typeof requestPermissionDecision;
   /** Forwarding directory `ParentAuthorizer` reads/writes request and response files under. */
@@ -91,8 +94,10 @@ export function selectAuthorizer(
     return new LocalUserAuthorizer({
       ui: ctx.ui,
       mode: ctx.mode,
+      cwd: ctx.cwd,
       events: deps.events,
       getPromptPreferences: deps.getPromptPreferences,
+      getConfig: deps.getConfig,
       requestPermissionDecision: deps.requestPermissionDecision,
     });
   }
