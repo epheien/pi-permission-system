@@ -292,6 +292,7 @@ describe("DiffPromptDecisionLayer", () => {
     const rows = layer.render(80).join("\n");
     expect(rows).toContain("(y) Yes");
     expect(rows).toContain("(s) Yes, for this session");
+    expect(rows).toContain("(esc) No");
     expect(rows).toContain("(r) No, provide reason");
     expect(rows).toContain("esc deny");
   });
