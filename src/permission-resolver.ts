@@ -90,6 +90,26 @@ export class PermissionResolver
   }
 
   /**
+   * Serving-node resolution for a forwarded request (ADR 0008): the same
+   * recorded-authority resolution as {@link resolve}, but threaded with the
+   * requester's own subagent identity so the serving node composes the
+   * requester's `subagentPermission` default layer. Without this, a subagent's
+   * forwarded `ask` would be re-judged as the serving main session's, silently
+   * dropping the subagent default (the child fixes the access facts; the
+   * serving node decides on recorded authority AGENT-scoped to the requester).
+   */
+  resolveForForwarded(
+    intent: ResolvedAccessIntent,
+    requesterIsSubagent: boolean,
+  ): PermissionCheckResult {
+    return this.permissionManager.check(
+      toResolvedIntent(intent),
+      this.sessionRules.getRuleset(),
+      { requesterIsSubagent },
+    );
+  }
+
+  /**
    * Raw permission check without session rules — the no-session-rules path
    * consumed by `SkillInputGateInputs` / `SkillPermissionChecker`.
    *

@@ -213,6 +213,7 @@ describe("readForwardedPermissionRequest — accessIntent field", () => {
       matchValues: ["/worktree/issue-42/src/foo.ts", "src/foo.ts"],
       boundaryValue: "/worktree/issue-42/src/foo.ts",
       requesterCwd: "/worktree/issue-42",
+      requesterIsSubagent: false,
       principal: { sessionId: "child-session", agentName: "researcher" },
     };
     const parsed = writeAndRead({ ...baseRequest(), accessIntent });
@@ -225,6 +226,7 @@ describe("readForwardedPermissionRequest — accessIntent field", () => {
       matchValues: ["deep-research"],
       boundaryValue: null,
       requesterCwd: "/repo",
+      requesterIsSubagent: false,
       principal: { sessionId: "child-session", agentName: "unknown" },
     };
     const parsed = writeAndRead({ ...baseRequest(), accessIntent });
@@ -247,6 +249,30 @@ describe("readForwardedPermissionRequest — accessIntent field", () => {
       parsed?.accessIntent?.boundaryValue === null ||
         typeof parsed?.accessIntent?.boundaryValue === "string",
     ).toBe(true);
+  });
+
+  it("round-trips requesterIsSubagent=true and narrows any non-true value to false", () => {
+    const accessIntent: ForwardedAccessIntent = {
+      surface: "edit",
+      matchValues: ["/app/x"],
+      boundaryValue: null,
+      requesterCwd: "/repo",
+      principal: { sessionId: "child-session", agentName: "worker" },
+      requesterIsSubagent: true,
+    };
+    const parsed = writeAndRead({ ...baseRequest(), accessIntent });
+    expect(parsed?.accessIntent?.requesterIsSubagent).toBe(true);
+
+    // A foreign/older child that stamps a non-boolean is narrowed to false.
+    const foreign = {
+      ...accessIntent,
+      requesterIsSubagent: "yes",
+    } as unknown as ForwardedAccessIntent;
+    const parsedForeign = writeAndRead({
+      ...baseRequest(),
+      accessIntent: foreign,
+    });
+    expect(parsedForeign?.accessIntent?.requesterIsSubagent).toBe(false);
   });
 
   it("reads a request with no access intent as undefined (version skew)", () => {

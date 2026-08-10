@@ -84,12 +84,20 @@ export function sessionRule(
 
 export type CreateManagerOptions = {
   mcpServerNames?: readonly string[];
+  /** Simulate a subagent (non-main) session so `subagentPermission` composes. */
+  isSubagent?: boolean;
 };
 
 export type CreateManagerWithProjectOptions = CreateManagerOptions & {
   projectConfig?: ScopeConfig;
   projectAgentFiles?: Record<string, string>;
 };
+
+function subagentOption(
+  isSubagent: boolean | undefined,
+): (() => boolean) | undefined {
+  return isSubagent === undefined ? undefined : () => isSubagent;
+}
 
 export function createManager(
   config: ScopeConfig,
@@ -115,6 +123,7 @@ export function createManager(
     globalConfigPath,
     agentsDir,
     mcpServerNames: options.mcpServerNames,
+    isSubagent: subagentOption(options.isSubagent),
   });
 
   return {
@@ -188,6 +197,7 @@ export function createManagerWithProject(
     projectGlobalConfigPath,
     projectAgentsDir,
     mcpServerNames: options.mcpServerNames,
+    isSubagent: subagentOption(options.isSubagent),
   });
 
   return {

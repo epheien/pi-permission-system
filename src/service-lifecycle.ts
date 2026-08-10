@@ -1,5 +1,8 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { RegisteredChildDetector } from "./authority/subagent-detection";
+import type {
+  RegisteredChildDetector,
+  SubagentDetector,
+} from "./authority/subagent-detection";
 import { emitReadyEvent, type PermissionEventBus } from "./permission-events";
 import {
   type PermissionConfigService,
@@ -30,12 +33,18 @@ export class PermissionServiceLifecycle implements ServiceLifecycle {
   constructor(
     private readonly service: PermissionsService,
     private readonly configService: PermissionConfigService,
-    private readonly detection: RegisteredChildDetector,
+    private readonly detection: RegisteredChildDetector & SubagentDetector,
+    private readonly onSubagentContextChange: (isSubagent: boolean) => void,
     private readonly events: PermissionEventBus,
     private readonly subscriptions: readonly (() => void)[],
   ) {}
 
   activate(ctx: ExtensionContext): void {
+    // Anchor the per-session subagent-context flag the PermissionManager's
+    // isSubagent() thunk reads, so the subagentPermission default layer is
+    // composed (or not) for this session's check(). Detection needs the
+    // session id, which is only available at session_start — hence here.
+    this.onSubagentContextChange(this.detection.isSubagent(ctx));
     if (!this.detection.isRegisteredChild(ctx)) {
       publishPermissionsService(this.service);
       publishPermissionConfigService(this.configService);

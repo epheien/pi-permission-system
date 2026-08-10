@@ -129,6 +129,7 @@ export function makeForwardedAccessIntent(
     matchValues: ["git status"],
     boundaryValue: null,
     requesterCwd: "/worktree/issue-42",
+    requesterIsSubagent: false,
     principal: { sessionId: "child-session", agentName: "Explore" },
     ...overrides,
   };

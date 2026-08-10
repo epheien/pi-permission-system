@@ -327,4 +327,31 @@ describe("PermissionResolver", () => {
       expect(result).toEqual(["issue-1"]);
     });
   });
+
+  describe("resolveForForwarded — requester subagent default layer", () => {
+    it("threads the requesterIsSubagent flag through to the manager", () => {
+      const { resolver, permissionManager } = makeResolver();
+
+      resolver.resolveForForwarded(
+        {
+          kind: "path-values",
+          surface: "edit",
+          values: ["/app/x"],
+          agentName: "worker",
+        },
+        true,
+      );
+
+      expect(permissionManager.check).toHaveBeenCalledWith(
+        {
+          kind: "path-values",
+          surface: "edit",
+          values: ["/app/x"],
+          agentName: "worker",
+        },
+        [],
+        { requesterIsSubagent: true },
+      );
+    });
+  });
 });

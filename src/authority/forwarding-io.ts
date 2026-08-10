@@ -93,6 +93,7 @@ function asForwardedAccessIntent(
     matchValues?: unknown;
     boundaryValue?: unknown;
     requesterCwd?: unknown;
+    requesterIsSubagent?: unknown;
     principal?: unknown;
   };
   if (
@@ -124,6 +125,9 @@ function asForwardedAccessIntent(
     matchValues: [...candidate.matchValues],
     boundaryValue: candidate.boundaryValue,
     requesterCwd: candidate.requesterCwd,
+    // Tolerant read: only an explicit `true` marks a subagent requester;
+    // any other (or absent) value means a plain requester.
+    requesterIsSubagent: candidate.requesterIsSubagent === true,
     principal: {
       sessionId: principal.sessionId,
       agentName: principal.agentName,

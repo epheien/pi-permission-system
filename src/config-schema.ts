@@ -221,6 +221,13 @@ export const unifiedConfigSchema = z
       default: "ctrl+alt+y",
     }),
     permission: permissionSchema.optional(),
+    subagentPermission: permissionSchema.optional().meta({
+      description:
+        "Default permission policy for subagent (non-main) sessions. Applies to any session detected as a subagent, layered between the main (global+project) policy and per-agent frontmatter overrides.",
+      markdownDescription:
+        'Default permission policy for **subagent (non-main)** sessions.\n\nApplies to any session detected as a subagent (registered in-process child, subagent env hints such as `PI_SUBAGENT_CHILD` / `PI_IS_SUBAGENT` / `PI_SUBAGENT_RUN_ID`, or a subagent session-dir). Its entries are layered between the **main** policy (global + project `permission`) and per-agent **frontmatter** overrides, so precedence is `main → subagentPermission → per-agent frontmatter`. Keys not set here fall through to the main policy; per-agent `permission:` frontmatter still wins for that specific agent.\n\nSet e.g. `{ "write": "ask", "edit": "ask" }` to require confirmation for file writes in every subagent without touching the main agent\'s policy. The `"*"` key changes the universal fallback for subagent sessions only. The global `yoloMode` bypass still applies: with yolo on, non-denied asks never prompt in any agent.',
+      default: {},
+    }),
     shellTools: shellToolsSchema.optional(),
   })
   .meta({

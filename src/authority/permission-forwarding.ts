@@ -99,6 +99,14 @@ export interface ForwardedAccessFacts {
 export interface ForwardedAccessIntent extends ForwardedAccessFacts {
   /** The requester's cwd, for provenance/disclosure — never for parent re-derivation. */
   requesterCwd: string;
+  /**
+   * Child-fixed requester identity: `true` when the requester is itself a
+   * subagent (non-main) session. The serving node composes the requester's
+   * `subagentPermission` default layer into the resolution when `true`, so a
+   * subagent's forwarded ask is judged as a subagent's (ADR 0008) rather than
+   * as the serving main session's. Absent (legacy/version-skew child) → `false`.
+   */
+  requesterIsSubagent?: boolean;
   /** Who is requesting. */
   principal: {
     sessionId: string;

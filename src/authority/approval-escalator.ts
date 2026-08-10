@@ -230,6 +230,11 @@ export class ParentAuthorizer implements TerminalAuthorizer {
       ? {
           ...facts.accessIntent,
           requesterCwd: getCwd(ctx),
+          // ParentAuthorizer only serves no-UI subagent contexts (selectAuthorizer
+          // invariant), so the requester IS a subagent — stamp it so the serving
+          // node composes the requester's `subagentPermission` default layer
+          // rather than judging the ask as a main session's (ADR 0008).
+          requesterIsSubagent: true,
           principal: {
             sessionId: requesterSessionId,
             agentName: requesterAgentName,

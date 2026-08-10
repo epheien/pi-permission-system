@@ -81,6 +81,13 @@ export default function piPermissionSystemExtension(pi: ExtensionAPI): void {
   // eslint-disable-next-line prefer-const -- forward-declared let; `const` requires an initializer
   let session: PermissionSession;
 
+  // Per-session subagent-context flag, set at session_start by
+  // PermissionServiceLifecycle.activate() from SubagentDetection.isSubagent(ctx)
+  // and read lazily by the manager so the "not main" subagentPermission layer
+  // is composed for subagent sessions only (detection needs the session id,
+  // which is unavailable at factory-init time).
+  let subagentContext = false;
+
   // Constructed after the `configStore` forward declaration so the yolo reader
   // can close over it; the closure runs per check(), after configStore is
   // assigned below. yolo becomes a composition-stage ask→allow rewrite (#526).
@@ -88,6 +95,7 @@ export default function piPermissionSystemExtension(pi: ExtensionAPI): void {
     agentDir,
     flavor: hostFlavor,
     isYoloEnabled: () => isYoloModeEnabled(configStore.current()),
+    isSubagent: () => subagentContext,
   });
 
   const logger = new PermissionSessionLogger({
@@ -139,12 +147,17 @@ export default function piPermissionSystemExtension(pi: ExtensionAPI): void {
   // PathNormalizer/cwd (#597).
   const servingPolicy: ServingPolicy = {
     resolve: (intent) =>
-      resolver.resolve(
+      resolver.resolveForForwarded(
         buildResolvedIntentFromMatchValues(
           intent.surface,
           intent.matchValues,
           intent.principal.agentName,
         ),
+        // A requester that identifies as a subagent gets its `subagentPermission`
+        // default layer composed by the serving node, so a subagent's forwarded
+        // ask is judged as a subagent's (ADR 0008) instead of as the main
+        // session's — the key to `subagentPermission` actually prompting.
+        intent.requesterIsSubagent === true,
       ),
   };
 
@@ -222,6 +235,9 @@ export default function piPermissionSystemExtension(pi: ExtensionAPI): void {
     permissionsService,
     configService,
     subagentDetection,
+    (isSubagent) => {
+      subagentContext = isSubagent;
+    },
     pi.events,
     [unsubSubagentLifecycle],
   );

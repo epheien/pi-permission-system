@@ -24,6 +24,13 @@ export type {
 export interface ScopeConfig {
   permission?: FlatPermissionConfig;
   /**
+   * Default permission policy for subagent (non-main) sessions. Composed as a
+   * scope layered between the project config and per-agent frontmatter when the
+   * current session is detected as a subagent (see `PermissionManager`).
+   * Optional — absent means subagent sessions inherit the main policy unchanged.
+   */
+  subagentPermission?: FlatPermissionConfig;
+  /**
    * True when the scope's config file was present but failed to load or
    * validate (JSON parse error or schema rejection). Absent and valid files
    * leave this unset. Drives the fail-closed allow→ask clamp for non-global

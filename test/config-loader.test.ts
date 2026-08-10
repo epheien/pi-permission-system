@@ -455,6 +455,24 @@ describe("mergeUnifiedConfigs", () => {
     });
   });
 
+  it("deep-merges subagentPermission so project overrides global per-key", () => {
+    const merged = mergeUnifiedConfigs(
+      { subagentPermission: { write: "allow", read: "allow" } },
+      {
+        subagentPermission: {
+          write: "ask",
+          bash: { "git status": "allow" },
+        },
+      },
+    );
+
+    expect(merged.subagentPermission).toEqual({
+      write: "ask",
+      read: "allow",
+      bash: { "git status": "allow" },
+    });
+  });
+
   it("string permission value in override replaces base string for same key", () => {
     const merged = mergeUnifiedConfigs(
       { permission: { read: "ask" } },
@@ -499,10 +517,7 @@ describe("mergeUnifiedConfigs", () => {
   });
 
   it("carries yoloModeShortcut from the base and lets the override win", () => {
-    const fromGlobal = mergeUnifiedConfigs(
-      { yoloModeShortcut: "ctrl+y" },
-      {},
-    );
+    const fromGlobal = mergeUnifiedConfigs({ yoloModeShortcut: "ctrl+y" }, {});
     expect(fromGlobal.yoloModeShortcut).toBe("ctrl+y");
 
     const overridden = mergeUnifiedConfigs(

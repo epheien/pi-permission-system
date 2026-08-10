@@ -43,5 +43,11 @@
       "~/development/*": "allow",
       "~/.cargo/registry/*": "allow"
     }
+  },
+
+  "subagentPermission": {
+    "write": "ask",
+    "edit": "ask",
+    "bash": { "*": "ask" }
   }
 }

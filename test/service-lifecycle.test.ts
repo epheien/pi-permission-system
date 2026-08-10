@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { RegisteredChildDetector } from "#src/authority/subagent-detection";
+import type {
+  RegisteredChildDetector,
+  SubagentDetector,
+} from "#src/authority/subagent-detection";
 import type { PermissionConfigService, PermissionsService } from "#src/service";
 import {
   PermissionServiceLifecycle,
@@ -11,6 +14,8 @@ import { makeCtx } from "#test/helpers/handler-fixtures";
 // ── module stubs ───────────────────────────────────────────────────────────
 
 const mockIsRegisteredChild = vi.fn<(ctx: unknown) => boolean>();
+const mockIsSubagent = vi.fn<(ctx: unknown) => boolean>();
+const mockOnSubagentContextChange = vi.fn<(isSubagent: boolean) => void>();
 const mockPublishPermissionsService = vi.hoisted(() => vi.fn<() => void>());
 const mockUnpublishPermissionsService = vi.hoisted(() => vi.fn<() => void>());
 const mockPublishPermissionConfigService = vi.hoisted(() =>
@@ -47,8 +52,11 @@ function makeConfigService(): PermissionConfigService {
   return { getConfig: vi.fn(), toggleYoloMode: vi.fn() };
 }
 
-function makeDetection(): RegisteredChildDetector {
-  return { isRegisteredChild: mockIsRegisteredChild };
+function makeDetection(): RegisteredChildDetector & SubagentDetector {
+  return {
+    isRegisteredChild: mockIsRegisteredChild,
+    isSubagent: mockIsSubagent,
+  };
 }
 
 function makeLifecycle(overrides?: { subscriptions?: (() => void)[] }) {
@@ -57,10 +65,12 @@ function makeLifecycle(overrides?: { subscriptions?: (() => void)[] }) {
   const detection = makeDetection();
   const events = { emit: vi.fn(), on: vi.fn() };
   const subscriptions = overrides?.subscriptions ?? [];
+  const onSubagentContextChange = mockOnSubagentContextChange;
   const lifecycle = new PermissionServiceLifecycle(
     service,
     configService,
     detection,
+    onSubagentContextChange,
     events,
     subscriptions,
   );
@@ -71,12 +81,16 @@ function makeLifecycle(overrides?: { subscriptions?: (() => void)[] }) {
     detection,
     events,
     subscriptions,
+    onSubagentContextChange,
   };
 }
 
 beforeEach(() => {
   mockIsRegisteredChild.mockReset();
   mockIsRegisteredChild.mockReturnValue(false);
+  mockIsSubagent.mockReset();
+  mockIsSubagent.mockReturnValue(false);
+  mockOnSubagentContextChange.mockReset();
   mockPublishPermissionsService.mockReset();
   mockUnpublishPermissionsService.mockReset();
   mockPublishPermissionConfigService.mockReset();
@@ -148,6 +162,22 @@ describe("activate", () => {
     const { lifecycle } = makeLifecycle();
     lifecycle.activate(ctx);
     expect(mockIsRegisteredChild).toHaveBeenCalledWith(ctx);
+  });
+
+  it("propagates the subagent detection to the context callback", () => {
+    const ctx = makeCtx();
+    const { lifecycle } = makeLifecycle();
+    mockIsSubagent.mockReturnValue(true);
+    lifecycle.activate(ctx);
+    expect(mockIsSubagent).toHaveBeenCalledWith(ctx);
+    expect(mockOnSubagentContextChange).toHaveBeenCalledWith(true);
+  });
+
+  it("reports a main session as not-subagent to the callback", () => {
+    const ctx = makeCtx();
+    const { lifecycle } = makeLifecycle();
+    lifecycle.activate(ctx);
+    expect(mockOnSubagentContextChange).toHaveBeenCalledWith(false);
   });
 });
 

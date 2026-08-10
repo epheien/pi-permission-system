@@ -31,6 +31,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createPermissionForwardingLocation,
   type ForwardedPermissionRequest,
+  SUBAGENT_ENV_HINT_KEYS,
 } from "#src/authority/permission-forwarding";
 import { SUBAGENT_CHILD_SESSION_CREATED } from "#src/authority/subagent-lifecycle-events";
 import { getSubagentSessionRegistry } from "#src/authority/subagent-registry";
@@ -61,6 +62,13 @@ let agentDir: string;
 beforeEach(() => {
   agentDir = mkdtempSync(join(tmpdir(), "pi-perm-comp-root-"));
   vi.stubEnv("PI_CODING_AGENT_DIR", agentDir);
+  // Hermetic detection baseline: the test runner itself may be a subagent
+  // session (e.g. PI_SUBAGENT_CHILD set by the spawner). Clear every
+  // declared subagent env hint so the "parent" ctx models the true main agent
+  // and subagents are modeled only via the registry/forwarding machinery.
+  for (const key of SUBAGENT_ENV_HINT_KEYS) {
+    vi.stubEnv(key, "");
+  }
 });
 
 afterEach(() => {
@@ -907,6 +915,35 @@ describe("session approvals do not leak across same-cwd session switches", () =>
     // The previous session's approval must not be visible: `demo` is back to
     // its configured `ask`, not the carried-over `allow`.
     expect(getPermissionsService()!.checkPermission("demo").state).toBe("ask");
+
+    rmSync(cwd, { recursive: true, force: true });
+  });
+});
+
+describe("subagentPermission wiring", () => {
+  it("composes the subagentPermission layer only for subagent sessions", async () => {
+    writeGlobalConfig({
+      permission: { demo: "allow" },
+      subagentPermission: { demo: "ask" },
+    });
+    const cwd = mkdtempSync(join(tmpdir(), "pi-perm-subperm-"));
+
+    // Main session (no subagent marker) — subagentPermission must not apply.
+    const mainPi = makeFakePi({ toolNames: ["demo"] });
+    piPermissionSystemExtension(mainPi as unknown as ExtensionAPI);
+    await fireSessionStart(mainPi, makeBaseCtx(cwd, "main-sess"));
+    expect(getPermissionsService()!.checkPermission("demo").state).toBe(
+      "allow",
+    );
+    await mainPi.fire("session_shutdown");
+
+    // Subagent session detected via the child spawner's env marker — demo now asks.
+    vi.stubEnv("PI_SUBAGENT_CHILD", "1");
+    const subPi = makeFakePi({ events: createEventBus(), toolNames: ["demo"] });
+    piPermissionSystemExtension(subPi as unknown as ExtensionAPI);
+    await fireSessionStart(subPi, makeChildCtx(cwd, "sub-sess"));
+    expect(getPermissionsService()!.checkPermission("demo").state).toBe("ask");
+    await subPi.fire("session_shutdown");
 
     rmSync(cwd, { recursive: true, force: true });
   });

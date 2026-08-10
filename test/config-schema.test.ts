@@ -53,6 +53,14 @@ describe("unifiedConfigSchema", () => {
           .success,
       ).toBe(true);
     });
+
+    it("accepts a subagentPermission map alongside permission", () => {
+      const result = unifiedConfigSchema.safeParse({
+        permission: { write: "allow", read: "allow" },
+        subagentPermission: { write: "ask", edit: "ask" },
+      });
+      expect(result.success).toBe(true);
+    });
   });
 
   describe("invalid configs are rejected", () => {
@@ -67,6 +75,13 @@ describe("unifiedConfigSchema", () => {
       if (!result.success) {
         expect(result.error.issues[0]?.path).toEqual(["debugLog"]);
       }
+    });
+
+    it("rejects a non-map subagentPermission", () => {
+      const result = unifiedConfigSchema.safeParse({
+        subagentPermission: "ask",
+      });
+      expect(result.success).toBe(false);
     });
 
     it("rejects a non-integer toolInputPreviewMaxLength", () => {

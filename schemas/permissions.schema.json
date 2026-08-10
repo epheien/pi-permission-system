@@ -124,6 +124,60 @@
         }
       ]
     },
+    "subagentPermission": {
+      "description": "Default permission policy for subagent (non-main) sessions. Applies to any session detected as a subagent, layered between the main (global+project) policy and per-agent frontmatter overrides.",
+      "markdownDescription": "Default permission policy for **subagent (non-main)** sessions.\n\nApplies to any session detected as a subagent (registered in-process child, subagent env hints such as `PI_SUBAGENT_CHILD` / `PI_IS_SUBAGENT` / `PI_SUBAGENT_RUN_ID`, or a subagent session-dir). Its entries are layered between the **main** policy (global + project `permission`) and per-agent **frontmatter** overrides, so precedence is `main → subagentPermission → per-agent frontmatter`. Keys not set here fall through to the main policy; per-agent `permission:` frontmatter still wins for that specific agent.\n\nSet e.g. `{ \"write\": \"ask\", \"edit\": \"ask\" }` to require confirmation for file writes in every subagent without touching the main agent's policy. The `\"*\"` key changes the universal fallback for subagent sessions only. The global `yoloMode` bypass still applies: with yolo on, non-denied asks never prompt in any agent.",
+      "default": {},
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1,
+        "description": "A surface name or the universal fallback key '*'."
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/permissionState"
+          },
+          {
+            "$ref": "#/$defs/permissionMap"
+          }
+        ]
+      },
+      "examples": [
+        {
+          "*": "ask",
+          "path": {
+            "*": "allow",
+            "*.env": "deny",
+            "*.env.*": "deny",
+            "*.env.example": "allow"
+          },
+          "read": "allow",
+          "write": "deny",
+          "edit": "deny",
+          "bash": {
+            "*": "ask",
+            "git *": "ask",
+            "git status": "allow",
+            "git diff": "allow"
+          },
+          "mcp": {
+            "*": "ask",
+            "mcp_status": "allow",
+            "exa:*": "allow"
+          },
+          "skill": {
+            "*": "ask",
+            "librarian": "allow"
+          },
+          "external_directory": {
+            "*": "ask",
+            "~/.cargo/registry/*": "allow"
+          }
+        }
+      ]
+    },
     "shellTools": {
       "type": "object",
       "propertyNames": {

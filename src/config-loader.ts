@@ -270,6 +270,17 @@ export function mergeUnifiedConfigs(
     merged.permission = overridePerm;
   }
 
+  // subagentPermission: deep-shallow merge (project overrides global per-key)
+  const baseSub = base.subagentPermission;
+  const overrideSub = override.subagentPermission;
+  if (baseSub && overrideSub) {
+    merged.subagentPermission = mergeFlatPermissions(baseSub, overrideSub);
+  } else if (baseSub) {
+    merged.subagentPermission = baseSub;
+  } else if (overrideSub) {
+    merged.subagentPermission = overrideSub;
+  }
+
   return merged;
 }
 

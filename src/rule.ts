@@ -18,6 +18,7 @@ import { type WildcardMatchOptions, wildcardMatch } from "./wildcard-matcher";
 export type RuleOrigin =
   | "global"
   | "project"
+  | "subagent"
   | "agent"
   | "project-agent"
   | "builtin"

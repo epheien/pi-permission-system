@@ -41,6 +41,7 @@ This document describes the internal design of the permission system, informed b
 type RuleOrigin =
   | "global"
   | "project"
+  | "subagent"
   | "agent"
   | "project-agent"
   | "builtin"

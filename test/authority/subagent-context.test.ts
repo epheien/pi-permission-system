@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { SUBAGENT_ENV_HINT_KEYS } from "#src/authority/permission-forwarding";
 import {
   isRegisteredSubagentChild,
@@ -8,6 +8,16 @@ import {
 } from "#src/authority/subagent-context";
 import { SubagentSessionRegistry } from "#src/authority/subagent-registry";
 import { posixPathFlavor, win32PathFlavor } from "#src/path/path-flavor";
+
+beforeEach(() => {
+  // Hermetic baseline: clear every declared subagent env hint so a test runner
+  // that is itself a subagent session (e.g. PI_SUBAGENT_CHILD set by
+  // the spawning extension) cannot make the "no hint → not a subagent" cases
+  // fail. Each test stubs the key it needs on top of this baseline.
+  for (const key of SUBAGENT_ENV_HINT_KEYS) {
+    vi.stubEnv(key, "");
+  }
+});
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -509,11 +519,18 @@ describe("isSubagentExecutionContext — registry detection", () => {
   });
 
   test("registry check takes priority over env var detection", () => {
-    // Registry says registered; env var not set — should still return true.
+    // Registry says registered; no env hint set (hermetic beforeEach baseline) —
+    // should still return true.
     const registry = new SubagentSessionRegistry();
     registry.register(childSessionId, {});
-    // Confirm no env var is set
-    expect(process.env.PI_IS_SUBAGENT).toBeUndefined();
+    // Confirm no env hint alone triggers detection (hermetic baseline).
+    expect(
+      isSubagentExecutionContext(
+        makeCtx(outsideDir, childSessionId),
+        subagentRoot,
+        posixPathFlavor,
+      ),
+    ).toBe(false);
     expect(
       isSubagentExecutionContext(
         makeCtx(outsideDir, childSessionId),

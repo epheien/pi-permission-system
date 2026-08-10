@@ -1,16 +1,22 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, test, vi } from "vitest";
+import { buildResolvedIntentFromMatchValues } from "#src/access-intent/input-normalizer";
 import type { Authorizer } from "#src/authority/authorizer";
 import { encloseInDelegationEnvelope } from "#src/authority/delegation-envelope";
 import { ForwardedRequestServer } from "#src/authority/forwarded-request-server";
 import type { PermissionPromptDecision } from "#src/authority/permission-dialog";
 import type {
+  ForwardedAccessIntent,
   ForwardedPermissionRequest,
   ForwardedPermissionResponse,
 } from "#src/authority/permission-forwarding";
 import type { PromptPermissionDetails } from "#src/authority/permission-prompter";
-import type { PermissionQuery } from "#src/service";
+import { posixPathFlavor } from "#src/path/path-flavor";
+import { PermissionManager } from "#src/permission-manager";
+import { PermissionResolver } from "#src/permission-resolver";
+import type { PermissionCheckResult, PermissionQuery } from "#src/service";
+import { SessionRules } from "#src/session-rules";
 import { makeAuthorizerLog } from "#test/helpers/authorizer-log-fixtures";
 import {
   createForwardingTempDir,
@@ -21,6 +27,7 @@ import {
   makeSubagentRegistry,
 } from "#test/helpers/forwarding-fixtures";
 import { makeCheckResult } from "#test/helpers/handler-fixtures";
+import { createInMemoryPolicyLoader } from "#test/helpers/manager-harness";
 
 let temp: ForwardingTempDir | undefined;
 
@@ -683,5 +690,129 @@ describe("processInbox — inbox mechanics", () => {
     );
 
     expect(resolve).not.toHaveBeenCalled();
+  });
+});
+
+describe("processInbox — requester subagentPermission default layer", () => {
+  /**
+   * Real manager-based serving policy mirroring the composition root: the
+   * serving node is the main session, and the requester's own subagent
+   * identity decides whether the `subagentPermission` default layer is
+   * composed (ADR 0008 — the child's access intent resolves against recorded
+   * authority, now including the requester's subagent default).
+   */
+  function makeRealServingPolicy(): {
+    resolve(intent: ForwardedAccessIntent): PermissionCheckResult;
+  } {
+    const manager = new PermissionManager({
+      policyLoader: createInMemoryPolicyLoader({
+        global: {
+          permission: { edit: "allow", write: "allow" },
+          subagentPermission: { edit: "ask", write: "ask" },
+        },
+      }),
+      flavor: posixPathFlavor,
+      isSubagent: () => false,
+      isYoloEnabled: () => false,
+    });
+    const resolver = new PermissionResolver(manager, new SessionRules());
+    return {
+      resolve: (intent: ForwardedAccessIntent) =>
+        resolver.resolveForForwarded(
+          buildResolvedIntentFromMatchValues(
+            intent.surface,
+            intent.matchValues,
+            intent.principal.agentName,
+          ),
+          intent.requesterIsSubagent === true,
+        ),
+    };
+  }
+
+  test("prompts a subagent requester's edit even though the serving main map allows it", async () => {
+    temp = createForwardingTempDir("parent-session");
+    const accessIntent = makeForwardedAccessIntent({
+      surface: "edit",
+      matchValues: ["/app/x"],
+      requesterIsSubagent: true,
+    });
+    temp.writeRequest({
+      id: "req-subagent-ask",
+      source: "tool_call",
+      surface: "edit",
+      value: "/app/x",
+      accessIntent,
+    });
+
+    const escalate = vi.fn().mockResolvedValue({
+      approved: true,
+      state: "approved",
+    });
+    const logger = { review: vi.fn(), debug: vi.fn() };
+
+    const server = new ForwardedRequestServer(
+      makeServerDeps({
+        forwardingDir: temp.forwardingDir,
+        logger,
+        policy: makeRealServingPolicy(),
+        escalator: { escalate },
+      }),
+    );
+
+    await server.processInbox(
+      makeForwarderContext({ hasUI: true, sessionId: "parent-session" }),
+    );
+
+    expect(escalate).toHaveBeenCalledTimes(1);
+    expect(logger.review).toHaveBeenCalledWith(
+      "forwarded_permission.prompted",
+      expect.objectContaining({ requestId: "req-subagent-ask" }),
+    );
+    expect(logger.review).not.toHaveBeenCalledWith(
+      "forwarded_permission.auto_approved",
+      expect.objectContaining({ requestId: "req-subagent-ask" }),
+    );
+    expect(readResponse(temp, "req-subagent-ask")).toMatchObject({
+      approved: true,
+      state: "approved",
+    });
+  });
+
+  test("auto-approves the same edit for a non-subagent requester (main map decides)", async () => {
+    temp = createForwardingTempDir("parent-session");
+    const accessIntent = makeForwardedAccessIntent({
+      surface: "edit",
+      matchValues: ["/app/x"],
+      // no requesterIsSubagent → treated as a plain (non-subagent) requester
+    });
+    temp.writeRequest({
+      id: "req-nonsubagent",
+      source: "tool_call",
+      surface: "edit",
+      value: "/app/x",
+      accessIntent,
+    });
+
+    const escalate = vi.fn();
+    const logger = { review: vi.fn(), debug: vi.fn() };
+
+    const server = new ForwardedRequestServer(
+      makeServerDeps({
+        forwardingDir: temp.forwardingDir,
+        logger,
+        policy: makeRealServingPolicy(),
+        escalator: { escalate },
+      }),
+    );
+
+    await server.processInbox(
+      makeForwarderContext({ hasUI: true, sessionId: "parent-session" }),
+    );
+
+    expect(escalate).not.toHaveBeenCalled();
+    expect(logger.review).toHaveBeenCalledWith(
+      "forwarded_permission.auto_approved",
+      expect.objectContaining({ requestId: "req-nonsubagent" }),
+    );
   });
 });

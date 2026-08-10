@@ -10,6 +10,7 @@ import {
 } from "./config-paths";
 import { normalizeFlatConfig } from "./normalize";
 import { type PathFlavor, posixPathFlavor } from "./path/path-flavor";
+import { mergeFlatPermissions } from "./permission-merge";
 import {
   FilePolicyLoader,
   type PolicyLoader,
@@ -34,6 +35,7 @@ import type {
   FlatPermissionConfig,
   PermissionCheckResult,
   PermissionState,
+  ScopeConfig,
 } from "./types";
 import { isPermissionState } from "./types";
 
@@ -81,6 +83,7 @@ export interface ScopedPermissionManager {
   check(
     intent: ResolvedAccessIntent,
     sessionRules?: Ruleset,
+    options?: { requesterIsSubagent?: boolean },
   ): PermissionCheckResult;
   getToolPermission(toolName: string, agentName?: string): PermissionState;
   getConfigIssues(agentName?: string): string[];
@@ -108,12 +111,19 @@ export interface PermissionManagerOptions extends PolicyLoaderOptions {
    * yolo disabled.
    */
   isYoloEnabled?: () => boolean;
+  /**
+   * Per-session predicate: is the current session a subagent (non-main)?
+   * When true, the `subagentPermission` default layer is composed between the
+   * project scope and per-agent frontmatter. Defaults to false (main).
+   */
+  isSubagent?: () => boolean;
 }
 
 export class PermissionManager implements ScopedPermissionManager {
   private readonly agentDir: string | undefined;
   private readonly flavor: PathFlavor;
   private readonly isYoloEnabled: () => boolean;
+  private readonly isSubagent: () => boolean;
   private loader: PolicyLoader;
   private readonly resolvedPermissionsCache = new Map<
     string,
@@ -124,6 +134,7 @@ export class PermissionManager implements ScopedPermissionManager {
     this.agentDir = options.agentDir;
     this.flavor = options.flavor ?? posixPathFlavor;
     this.isYoloEnabled = options.isYoloEnabled ?? YOLO_DISABLED;
+    this.isSubagent = options.isSubagent ?? (() => false);
     this.loader =
       options.policyLoader ??
       new FilePolicyLoader(
@@ -167,8 +178,23 @@ export class PermissionManager implements ScopedPermissionManager {
     return this.loader.getResolvedPolicyPaths();
   }
 
-  private resolvePermissions(agentName?: string): ResolvedPermissions {
-    const cacheKey = agentName ?? "__global__";
+  /**
+   * Resolve the composed ruleset for a session, keyed by agent scope and by
+   * the subagent flag. `subagentOverride` lets the serving-down role (a
+   * forwarded request from a subagent) compose the requester's
+   * `subagentPermission` default layer even though the serving session itself
+   * is the main agent — a subagent's forwarded ask is judged as a subagent's.
+   */
+  private resolvePermissions(
+    agentName?: string,
+    subagentOverride?: boolean,
+  ): ResolvedPermissions {
+    // The subagent flag is constant per session, but fold it into the cache
+    // key anyway so a (hypothetical) flag flip can never serve a stale ruleset.
+    const isSubagent = subagentOverride ?? this.isSubagent();
+    const cacheKey = `${agentName ?? "__global__"}|sub=${
+      isSubagent ? "1" : "0"
+    }`;
     const stamp = this.loader.getCacheStamp(agentName);
     const cached = this.resolvedPermissionsCache.get(cacheKey);
     if (cached?.stamp === stamp) {
@@ -180,12 +206,32 @@ export class PermissionManager implements ScopedPermissionManager {
     const agentConfig = this.loader.loadAgentConfig(agentName);
     const projectAgentConfig = this.loader.loadProjectAgentConfig(agentName);
 
+    // The "not main" default layer: for subagent sessions, compose the
+    // global+project subagentPermission map as a scope layered between the
+    // main (global+project) policy and per-agent frontmatter, so every
+    // subagent gets this default unless its own frontmatter overrides it
+    // (precedence: main → subagent → specify). A main session injects nothing,
+    // so it is completely unaffected.
+    const subagentScopes: [RuleOrigin, ScopeConfig][] = [];
+    if (isSubagent) {
+      subagentScopes.push([
+        "subagent",
+        {
+          permission: mergeFlatPermissions(
+            globalConfig.subagentPermission ?? {},
+            projectConfig.subagentPermission ?? {},
+          ),
+        },
+      ]);
+    }
+
     // Merge permission objects across scopes (lowest → highest precedence),
     // building a parallel origin map that tracks which scope contributed each
     // (surface, pattern) entry.
     const { mergedPermission, origins } = mergeScopesWithOrigins([
       ["global", globalConfig],
       ["project", projectConfig],
+      ...subagentScopes,
       ["agent", agentConfig],
       ["project-agent", projectAgentConfig],
     ]);
@@ -285,8 +331,12 @@ export class PermissionManager implements ScopedPermissionManager {
   check(
     intent: ResolvedAccessIntent,
     sessionRules?: Ruleset,
+    options?: { requesterIsSubagent?: boolean },
   ): PermissionCheckResult {
-    const { composedRules } = this.resolvePermissions(intent.agentName);
+    const { composedRules } = this.resolvePermissions(
+      intent.agentName,
+      options?.requesterIsSubagent,
+    );
     const composedWithSession: Ruleset = sessionRules?.length
       ? [...composedRules, ...sessionRules]
       : composedRules;

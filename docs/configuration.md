@@ -706,6 +706,52 @@ Avoid arrays, multi-line scalars, and YAML anchors.
 
 ---
 
+## Subagent Default Policy (`subagentPermission`)
+
+Give **every subagent (non-main) session** its own default permission layer without touching the main agent's config.
+The special `subagentPermission` key is a flat permission map (same shape as `permission`) placed in the **global or project** config file:
+
+```jsonc
+{
+  "permission": {
+    "*": "allow",
+    "write": "allow",
+    "edit": "allow"
+  },
+  "subagentPermission": {
+    "write": "ask",
+    "edit": "ask"
+  }
+}
+```
+
+With this config the main agent writes/edits without prompting, while **any** subagent session — whatever its name, however it was spawned — must confirm `write`/`edit`. Keys not listed in `subagentPermission` fall through to the main policy, so `bash`/`read` rules from the main config still apply.
+
+### Judgment: "Is this session a subagent?"
+
+A session is treated as a subagent (non-main) when any of these hold:
+
+1. It is a registered in-process child (e.g. `@gotgenes/pi-subagents` runs),
+2. A subagent env hint is set — e.g. `PI_IS_SUBAGENT`, `PI_SUBAGENT_CHILD`, `PI_SUBAGENT_RUN_ID`, `PI_SUBAGENT_CHILD_AGENT` (the full list lives in `SUBAGENT_ENV_HINT_KEYS`),
+3. Its session directory sits under the subagent session root.
+
+The **main agent** is the session that matches none of these — the interactive session you drive directly.
+
+> `PI_SUBAGENT_PARENT_SESSION` is deliberately **not** a detection hint: subagent spawners (e.g. epheien/pi-subagents) set it on the root session too (self-referentially, for children to inherit as the forwarding target), so its presence alone cannot distinguish a child from main. It is used only to resolve the forwarding target.
+
+### Precedence
+
+`main` (global + project `permission`) → `subagentPermission` (project overrides global) → per-agent frontmatter.
+A specific agent can still tighten or loosen its own policy via `permission:` frontmatter (`specify` wins), and its entries also show as `subagent`-origin rules in `/permission-system show`.
+
+A subagent's `ask` is **forwarded** to the parent for a human decision (a subagent has no UI), and the parent re-judges the request on its own recorded authority. To honor `subagentPermission`, the parent composes the **requester's** subagent default layer when serving a subagent's forwarded ask — so with this config, a subagent's `write`/`edit` prompts even though the parent's own `permission` map allows them. Requests from non-subagent (e.g. headless main) sessions are judged on the main map only.
+
+### YOLO mode
+
+`subagentPermission` does **not** bypass YOLO mode: `yoloMode` is a session-local ask→allow bypass, and with it enabled this session's non-denied `ask` never prompts in any agent (subagents included). YOLO resets to off every fresh session, so simply don't enable this session's yolo (hotkey or `/permission-system yolo`) when you want subagents to actually prompt.
+
+---
+
 ## Common Recipes
 
 ### Protect Sensitive Files

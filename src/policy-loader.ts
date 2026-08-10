@@ -213,6 +213,7 @@ export class FilePolicyLoader implements PolicyLoader {
 
     const value: ScopeConfig = {
       permission: config.permission,
+      subagentPermission: config.subagentPermission,
     };
 
     this.globalConfigCache = { stamp, value };
@@ -236,6 +237,7 @@ export class FilePolicyLoader implements PolicyLoader {
     // rejection); an absent file yields none. Fail closed on the former.
     const value: ScopeConfig = {
       permission: config.permission,
+      subagentPermission: config.subagentPermission,
       ...(issues.length > 0 ? { invalid: true } : {}),
     };
 

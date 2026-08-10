@@ -185,6 +185,7 @@ describe("ParentAuthorizer", () => {
         matchValues: ["/worktree/issue-42/src/foo.ts", "src/foo.ts"],
         boundaryValue: "/worktree/issue-42/src/foo.ts",
         requesterCwd: "/worktree/issue-42",
+        requesterIsSubagent: true,
         principal: {
           sessionId: request.requesterSessionId,
           agentName: request.requesterAgentName,
