@@ -142,30 +142,6 @@ function createChangePreviewFromTexts(
 	};
 }
 
-function withReviewEditSummary(summaryLines: string[]): string[] {
-	const marker = "Edited in review";
-	const filtered = summaryLines.filter((line) => line !== marker);
-	return [marker, ...filtered];
-}
-
-export function rebuildPreviewAfterManualEdit(preview: ChangePreview, editedAfterText: string): ChangePreview {
-	if (preview.beforeText === undefined || preview.afterText === undefined) return preview;
-
-	const normalizedAfterText = normalizeToLF(editedAfterText);
-	const nextSummaryLines =
-		normalizedAfterText === preview.afterText ? preview.summaryLines : withReviewEditSummary(preview.summaryLines);
-
-	return createChangePreviewFromTexts(
-		preview.toolName,
-		preview.path,
-		preview.absolutePath,
-		preview.beforeText,
-		normalizedAfterText,
-		nextSummaryLines,
-		preview.beforeText === normalizedAfterText ? `No changes would be made to ${preview.path}.` : undefined,
-	);
-}
-
 function getEditOperations(input: MultiEditToolInput): { operations: MultiEditOperation[]; mode: "single" | "multi" } | { error: string } {
 	if (Array.isArray(input.edits)) {
 		if (input.edits.length === 0) {

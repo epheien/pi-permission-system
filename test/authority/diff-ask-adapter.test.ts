@@ -167,6 +167,12 @@ describe("shouldUseDiff", () => {
     );
   });
 
+  it("toolInput 为 null → false", () => {
+    expect(
+      shouldUseDiff(cfg({}), mk({ toolName: "write", toolInput: null }), "tui"),
+    ).toBe(false);
+  });
+
   it("非 TUI → false", () => {
     expect(
       shouldUseDiff(cfg({}), mk({ toolName: "write", toolInput: {} }), "rpc"),

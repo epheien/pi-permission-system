@@ -255,6 +255,7 @@ export function shouldUseDiff(
     mode === "tui" &&
     isDiffReviewableTool(details.toolName) &&
     details.toolInput !== undefined &&
+    details.toolInput !== null &&
     (config.toolDiffPrompt ?? true)
   );
 }
