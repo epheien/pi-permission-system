@@ -130,20 +130,10 @@ export class LocalUserAuthorizer implements TerminalAuthorizer {
         ),
       input,
     );
-    if (decision.kind === "preview_unavailable") {
-      return this.deps.requestPermissionDecision(
-        {
-          mode: this.deps.mode,
-          ui: this.deps.ui,
-          doublePressToConfirm: false,
-        },
-        details.forwarding
-          ? "Permission Required (Subagent)"
-          : "Permission Required",
-        details.message,
-        buildRequestOptions(details),
-      );
-    }
+    // 裁决 A(2026-08-10):preview 失败不回落文本,而是在 diff 视图内的警告行
+    // 呈现。preview_unavailable 对 write/edit 实际不可达(computeChangePreview
+    // 从不返回 null),这里经由 mapDiffDecision 仅 fail-closed:不经 UI 直接拒绝,
+    // 绝不静默放行。
     return mapDiffDecision(decision);
   }
 }

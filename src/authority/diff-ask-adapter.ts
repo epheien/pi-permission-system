@@ -141,7 +141,7 @@ export class DiffPromptDecisionLayer implements DiffDecisionLayer {
       const label = OPTION_LABEL(key, this.labels);
       const selected = this.state.highlightedKey === key;
       const marker = selected ? "▶" : " ";
-      const row = `${marker} (${key}) ${label}`;
+      const row = `${marker} (${DISPLAY_KEY[key]}) ${label}`;
       rows.push(selected ? this.theme.fg("accent", row) : row);
     }
     if (this.state.hint) {
@@ -190,6 +190,17 @@ export class DiffPromptDecisionLayer implements DiffDecisionLayer {
 }
 
 const OPTION_ORDER: readonly PromptKey[] = ["y", "s", "n", "r"];
+
+/**
+ * 决策行展示的键名。注意 'n' 显示为 "esc":'n' 是 viewer 的 hunk 导航键,
+ * 拒绝以 Esc / r 表达,这里避免显示可误导的 "(n) No"(高亮 No+Enter 不可达)。
+ */
+const DISPLAY_KEY: Record<PromptKey, string> = {
+  y: "y",
+  s: "s",
+  n: "esc",
+  r: "r",
+};
 
 function OPTION_LABEL(key: PromptKey, labels: DiffReviewLabels): string {
   switch (key) {

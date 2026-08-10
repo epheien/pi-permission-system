@@ -19,7 +19,7 @@ function mk(
     agentName: null,
     message: "m",
     ...overrides,
-  } as PromptPermissionDetails;
+  };
 }
 
 function cfg(
