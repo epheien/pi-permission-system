@@ -12,9 +12,7 @@ import {
   adjustStructuredDiffContext,
   type InlineRange,
   type StructuredDiff,
-  type StructuredDiffHunk,
   type StructuredDiffRow,
-  type StructuredDiffVisibleItem,
 } from "./diff-utils";
 import {
   DEFAULT_KEYBINDINGS,
@@ -179,6 +177,7 @@ function getDiffBackgrounds(
 }
 
 function parseTrueColorBackgroundAnsi(ansi: string): RgbColor | undefined {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: 解析 ANSI true-color 背景,必须匹配 ESC(0x1b)字节;该规则由 recommended 启用且无 allow 配置,只能定点 ignore
   const match = /\x1b\[48;2;(\d{1,3});(\d{1,3});(\d{1,3})m/.exec(ansi);
   if (!match) return undefined;
 
@@ -340,6 +339,7 @@ export class DiffViewer implements Component {
   private lastRenderedDiffCache?: { key: string; value: RenderedDiffCache };
   private readonly cursorlessRowCache = new Map<string, RenderedCell>();
   private readonly gapLineCache = new Map<string, string>();
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: 该字段经 buildKeymap/buildFooterLines 的 `const { kb } = this` 解构使用;biome 2.4.16 对解构访问的类成员有误报
   private readonly kb: DiffKeybindings;
 
   constructor(
@@ -665,7 +665,7 @@ export class DiffViewer implements Component {
     return [leftHeader + split.gutterText + rightHeader, divider];
   }
 
-  private buildFooterLines(width: number, mode: ViewMode): string[] {
+  private buildFooterLines(width: number, _mode: ViewMode): string[] {
     const { kb } = this;
     const keyLabel = (key: string): string => {
       const labels: Record<string, string> = {
@@ -1036,14 +1036,6 @@ export class DiffViewer implements Component {
     return { lines: [truncateToWidth(prefix + fill, cellWidth, "", true)] };
   }
 
-  private getCursorColForRow(
-    row: StructuredDiffRow,
-    side: "old" | "new",
-  ): number | undefined {
-    // 内联编辑已裁剪(永不激活),直接无光标
-    return undefined;
-  }
-
   private renderSplitCell(
     row: StructuredDiffRow,
     side: "old" | "new",
@@ -1148,23 +1140,6 @@ export class DiffViewer implements Component {
     return { lines, cursorLineIndex: rightCell.cursorLineIndex };
   }
 
-  private renderSplitRow(
-    row: StructuredDiffRow,
-    leftWidth: number,
-    rightWidth: number,
-    gutterText: string,
-    lineNumberWidth: number,
-  ): RenderedCell {
-    return this.renderSplitRowWithCursor(
-      row,
-      leftWidth,
-      rightWidth,
-      gutterText,
-      lineNumberWidth,
-      this.getCursorColForRow(row, "new"),
-    );
-  }
-
   private renderUnifiedLine(
     sign: " " | "+" | "-",
     lineNumber: number | undefined,
@@ -1267,19 +1242,6 @@ export class DiffViewer implements Component {
           ? undefined
           : removed.lines.length + added.cursorLineIndex,
     };
-  }
-
-  private renderUnifiedRow(
-    row: StructuredDiffRow,
-    width: number,
-    lineNumberWidth: number,
-  ): RenderedCell {
-    return this.renderUnifiedRowWithCursor(
-      row,
-      width,
-      lineNumberWidth,
-      this.getCursorColForRow(row, "new"),
-    );
   }
 
   private renderGapLine(label: string, width: number): string {
@@ -1390,9 +1352,9 @@ export class DiffViewer implements Component {
   }
 
   private getCursorOverlay(
-    width: number,
-    mode: ViewMode,
-    content: RenderedDiffCache,
+    _width: number,
+    _mode: ViewMode,
+    _content: RenderedDiffCache,
   ): { cursorOffset?: number; cursorOverlay?: CursorOverlay } {
     // 内联编辑已裁剪(永不激活),不渲染光标浮层
     return {};
@@ -1654,7 +1616,7 @@ export class DiffViewer implements Component {
           continue;
         }
         visible[absoluteLineIndex - layout.scrollOffset] =
-          layout.cursorOverlay.lines[i]!;
+          layout.cursorOverlay.lines[i];
       }
     }
 

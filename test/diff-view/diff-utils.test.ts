@@ -20,7 +20,9 @@ describe("diff-utils(移植)", () => {
   it("generateDiffString 对无差异无增删标记", () => {
     const { diff } = generateDiffString("abc\ndef\n", "abc\ndef\n");
     const lines = diff.split("\n");
-    expect(lines.some((l) => l.startsWith("+") || l.startsWith("-"))).toBe(false);
+    expect(lines.some((l) => l.startsWith("+") || l.startsWith("-"))).toBe(
+      false,
+    );
   });
   it("generateDiffString 产出含 +/- 的可视 diff", () => {
     const { diff } = generateDiffString("a\nb\n", "a\nc\n");

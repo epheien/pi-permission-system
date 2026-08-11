@@ -99,8 +99,8 @@ export function parseShortcutKey(input: string | undefined): ShortcutKeyParse {
   // 字母 base 保留原始大小写(g 与 G 是同一个键——终端发的是字符,分不清
   // Shift 与 CapsLock,匹配层按大小写等价处理);其余键(数字/符号/特殊键)
   // 规范为小写 canonical。
-  const rawBase = rawParts[rawParts.length - 1]!;
-  const lowerBase = lowerParts[lowerParts.length - 1]!;
+  const rawBase = rawParts[rawParts.length - 1];
+  const lowerBase = lowerParts[lowerParts.length - 1];
   const base = /^[A-Za-z]$/.test(rawBase) ? rawBase : lowerBase;
   if (!isBaseKey(base)) {
     return { ok: false, reason: "invalid" };

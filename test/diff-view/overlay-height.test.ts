@@ -116,7 +116,11 @@ describe("diff overlay 高度(回归:下边框被裁)", () => {
   });
   it("viewer 与决策区之间恰好 1 行空行, 不叠加为 2 行", () => {
     const isBlank = (line: string) =>
-      line.replaceAll("│", "").replaceAll("┌", "").replaceAll("└", "").trim() === "";
+      line
+        .replaceAll("│", "")
+        .replaceAll("┌", "")
+        .replaceAll("└", "")
+        .trim() === "";
     const { lines } = makeFramedOverlay(44);
     const idx = lines.findIndex((line) => line.includes("(y) Yes"));
     expect(idx).toBeGreaterThan(1);
