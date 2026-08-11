@@ -20,7 +20,7 @@ The following concepts are shared between OpenCode and this extension:
 | Last-match-wins               | When multiple patterns match, the last one in config order wins                                                 |
 | `*` wildcard                  | Matches zero or more of any character (including path separators)                                               |
 | `?` wildcard                  | Matches exactly one character                                                                                   |
-| Home directory expansion      | `~/` and `$HOME/` expand to the OS home directory in patterns                                                   |
+| Home directory expansion      | `~/`, `$HOME/`, and `${HOME}/` expand to the OS home directory in patterns                                                   |
 | `external_directory` surface  | Gates access to paths outside the working directory                                                             |
 | `bash` surface                | Command patterns matched against shell commands                                                                 |
 | `skill` surface               | Skill name patterns matched against skill invocations                                                           |

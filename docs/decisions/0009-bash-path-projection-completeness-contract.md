@@ -63,6 +63,8 @@ A path reaches the `path` and `external_directory` surfaces when it appears as:
 - A **value embedded in a long option** (`--file=/tmp/patterns`), split at collection time and classified by the ordinary shape rules ([#645]).
 - A **bare token naming an existing filesystem entry** — the existence probe ([#645]).
   Its canonical (symlink-resolved) form is what policy matches, so a symlink is gated by rules naming its target ([#493]).
+- A **plain `$HOME` / `${HOME}` / `$PWD` / `${PWD}` reference**, resolved at token collection before classification ([#694]).
+  `$HOME/x` is therefore gated exactly as `~/x` and as the literal absolute spelling, independent of whether the target exists; `$PWD/x` is gated exactly as `./x`.
 - Any of the above resolved against the **effective working directory** after literal current-shell `cd` folding; a non-literal `cd` renders the base unknown and keeps tokens literal-only ([#393]).
 
 Opacity is handled separately and conservatively: a wrapper command that hides its payload (`bash -c`, `eval`, `sudo`, `xargs`, …) is floored from `allow` to `ask` rather than projected.
@@ -74,7 +76,9 @@ These are **accepted residuals**, not open bugs:
 - **Nonexistent bare write targets** (`touch newfile`, `mv a newfile`) — the probe cannot see a file that does not exist yet.
   Redirect targets, the common creation path, are collected separately and unaffected.
 - **Glued short-option values** (`-f/tmp/x`) — distinguishing a glued value from a cluster of boolean flags (`-rf`) requires per-command option knowledge.
-- **Computed paths** (`$VAR`, `$(cmd)`, `"$HOME/x"`) — not statically resolvable; where a computed value affects the working directory, the unknown-base machinery already degrades conservatively.
+- **Computed paths** other than the plain `HOME`/`PWD` references above — any other `$VAR`, a command substitution (`$(cmd)`), an operator-bearing expansion (`${HOME:-/tmp}`, `${#HOME}`), and a variable reached through an assignment (`CURRENT="$HOME"; ls "$CURRENT"`).
+  Where a computed value affects the working directory, the unknown-base machinery already degrades conservatively.
+  Two ways to close the assignment case were considered and declined during [#694], measured over 2767 deduplicated real bash commands from the permission review log: same-program literal-assignment dataflow, which reaches **45 (1.6%)** of commands but adds stateful dataflow to the AST walk; and flooring any command carrying an unresolved-expansion path operand to `ask`, which would newly prompt on **194 (7.0%)** — the prompt-firehose outcome this ADR rejects for the bare-token case below.
 - **Per-command argument semantics** — which positional argument of `grep`/`git`/`kubectl` is a file.
   `PATTERN_FIRST_COMMANDS` encodes a deliberately small exception for pattern-first commands; generalizing it means shipping and maintaining an option table per tool.
 
@@ -94,7 +98,15 @@ The invariant is therefore stated over that input — *same policy + same filesy
 
 This is not a new concession.
 Canonicalization made resolution filesystem-dependent when it shipped, and it is the only sound treatment: a symlink's meaning simply is not a property of its name.
-Ambient, non-filesystem host state (environment variables, which shell binary was resolved, `cygpath` output) remains excluded, per ADR 0003.
+Ambient, non-filesystem host state (environment variables, which shell binary was resolved, `cygpath` output) remains excluded, per ADR 0003 — with two named, closed exceptions ([#694]):
+
+- **`HOME`**, resolved via `os.homedir()`.
+  This is not a widening: `expandHomePath` already resolved `~` and `$HOME` in config rule patterns, `piInfrastructureReadPaths`, and path policy literals, so the exception existed and only the bash projection disagreed with it.
+- **`PWD`**, resolved to the projection's own effective base.
+  It reads no environment at all, so it is strictly more deterministic than `HOME`.
+
+The set is closed: adding a third name is an ADR amendment, not an implementation detail.
+Every other variable keeps its literal text, so ADR 0003's rejection of `cygpath` shell-outs and MSYS environment detection stands untouched.
 
 Empirically the probe is highly selective: over 2358 deduplicated real bash commands from the permission review log, 3535 bare tokens survived the rejection prelude and **118 (3.3%)** named an existing entry.
 Cost is ~0.04 ms p95 per command, ~19% of the already-paid tree-sitter parse.
@@ -115,10 +127,14 @@ Cost is ~0.04 ms p95 per command, ~19% of the already-paid tree-sitter parse.
 
 - A "the bash gate missed my path" report is now triaged against this contract: it is either **inside** it (a bug — the projection failed a guarantee) or **outside** it (an accepted residual, or a judge-layer concern).
   This is the durable outcome; the recurrence in Context was a symptom of having no such test.
+  [#694] is the first report triaged this way, and it split: its `$HOME`/`${HOME}` half was **inside** (the package resolved `$HOME` for patterns and path literals but not for bash tokens, so a guarantee was inconsistently met) and was fixed; its assignment-dataflow half was **outside** and was declined with the numbers above.
+  A single report landing on both sides is the expected outcome of having the line drawn.
 - The [#509] promotion thread is deleted: `PathRuleTokenMatcher`, `PermissionManager.getPromotablePathTokenMatcher`, and the five-layer parameter thread from manager to resolver.
   The classifier is once again pure and policy-free.
 - `PathNormalizer` gains `entryExists`, keeping the filesystem edge in the same object that owns canonicalization; the classifiers stay pure shape functions.
 - Bare tokens naming existing files become gateable, so a config using `path`/`external_directory` denies now sees operands it previously missed — a breaking behavior change on upgrade ([#645]), remediated with `path`/`external_directory` allow patterns.
+- Expansion resolution lives at token collection (`resolveNodeText` → `shell-variable-expansion.ts`), never in the classifiers.
+  Teaching `classifyTokenAsPathCandidate` a `$HOME` prefix instead would have put the home-directory vocabulary in a second place and reproduced the drift that caused [#694]; resolving upstream keeps the classifiers pure shape functions that need no per-variable knowledge.
 - The probe adds one `lstat` per prelude-surviving bare token with a known base.
   If a future workload makes that cost material, the fallback is to gate the probe on "any explicit `path`/`external_directory` restriction exists in config" — a pipeline-level consult that still keeps the classifier policy-free.
 
@@ -132,3 +148,4 @@ Cost is ~0.04 ms p95 per command, ~19% of the already-paid tree-sitter parse.
 [#583]: https://github.com/gotgenes/pi-packages/issues/583
 [#620]: https://github.com/gotgenes/pi-packages/issues/620
 [#645]: https://github.com/gotgenes/pi-packages/issues/645
+[#694]: https://github.com/gotgenes/pi-packages/issues/694
