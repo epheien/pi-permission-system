@@ -5,6 +5,7 @@ import {
   type RequestPermissionOptions,
 } from "#src/authority/permission-dialog";
 import {
+  firstOptionKeys,
   initialPromptState,
   type PromptEvent,
   type PromptKey,
@@ -12,19 +13,31 @@ import {
   type PromptViewState,
   reducePrompt,
 } from "#src/authority/permission-prompt-decision";
+import {
+  keyLabel,
+  matchCancel,
+  matchConfirm,
+  matchDecisionHotkey,
+  matchNavDown,
+  matchNavUp,
+} from "#src/authority/prompt-key-matcher";
 import type {
   DecisionLayerResult,
   DiffDecisionLayer,
   DiffReviewDecision,
   DiffReviewLabels,
 } from "#src/diff-view/presenter";
-import type { PermissionSystemExtensionConfig } from "#src/extension-config";
+import type {
+  DecisionKeybindings,
+  PermissionSystemExtensionConfig,
+} from "#src/extension-config";
 import type { PromptPermissionDetails } from "./permission-prompter";
 
 /** 决策语义的薄包装:把 diff 内按键接进现有 reducePrompt。 */
 export class DiffPromptDecisionLayer implements DiffDecisionLayer {
   private state: PromptViewState;
   private readonly config: PromptModelConfig;
+  private readonly kb: DecisionKeybindings;
   private readonly labels: DiffReviewLabels;
   private theme = PLAIN_THEME;
 
@@ -32,12 +45,15 @@ export class DiffPromptDecisionLayer implements DiffDecisionLayer {
     labels: DiffReviewLabels;
     doublePressToConfirm: boolean;
     sessionScope?: NonNullable<RequestPermissionOptions["sessionScope"]>;
+    keybindings: DecisionKeybindings;
   }) {
     this.labels = opts.labels;
+    this.kb = opts.keybindings;
     this.config = {
       doublePressToConfirm: opts.doublePressToConfirm,
       sessionLabel: opts.labels.session,
       sessionScope: opts.sessionScope,
+      optionKeys: firstOptionKeys(opts.keybindings),
     };
     this.state = initialPromptState(this.config);
   }
@@ -50,49 +66,58 @@ export class DiffPromptDecisionLayer implements DiffDecisionLayer {
   }
 
   render(_width: number): string[] {
+    // 决策区与 viewer 之间的空行由 DiffAskComponent 统一插入(1 行);
+    // 这里不再自带前导空行,避免与组件分隔行叠加成 2 行空行。
     switch (this.state.step) {
       case "decision":
-        return ["", ...this.renderDecision()];
+        return this.renderDecision();
       case "reason":
-        return ["", ...this.renderReason()];
+        return this.renderReason();
       case "scope":
-        return ["", ...this.renderScope()];
+        return this.renderScope();
     }
   }
 
   handleInput(data: string): DecisionLayerResult {
-    if (this.state.step === "reason") {
-      return this.handleReasonInput(data);
-    }
-    if (this.state.step === "scope") {
-      if (matchesKey(data, "up")) {
-        return this.apply({ type: "nav", direction: "up" });
+    switch (this.state.step) {
+      case "reason":
+        return this.handleReasonInput(data);
+      case "scope":
+        if (matchNavUp(this.kb, data)) {
+          return this.apply({ type: "nav", direction: "up" });
+        }
+        if (matchNavDown(this.kb, data)) {
+          return this.apply({ type: "nav", direction: "down" });
+        }
+        if (matchConfirm(this.kb, data)) {
+          return this.apply({ type: "confirm" });
+        }
+        if (matchCancel(this.kb, data)) {
+          return this.apply({ type: "cancel" });
+        }
+        return { kind: "ignored" };
+      default: {
+        // decision 步:热键走配置查表;nav 也在此消费(滚动默认已禁用,
+        // ↑↓/j/k 移动高亮)。未命中的键交给 viewer(查看键)。
+        const key = matchDecisionHotkey(this.kb, data);
+        if (key) {
+          return this.apply({ type: "hotkey", key });
+        }
+        if (matchNavUp(this.kb, data)) {
+          return this.apply({ type: "nav", direction: "up" });
+        }
+        if (matchNavDown(this.kb, data)) {
+          return this.apply({ type: "nav", direction: "down" });
+        }
+        if (matchConfirm(this.kb, data)) {
+          return this.apply({ type: "confirm" });
+        }
+        if (matchCancel(this.kb, data)) {
+          return this.apply({ type: "cancel" });
+        }
+        return { kind: "ignored" };
       }
-      if (matchesKey(data, "down")) {
-        return this.apply({ type: "nav", direction: "down" });
-      }
-      if (matchesKey(data, "enter")) {
-        return this.apply({ type: "confirm" });
-      }
-      if (matchesKey(data, "escape")) {
-        return this.apply({ type: "cancel" });
-      }
-      return { kind: "ignored" };
     }
-    // decision 步:y/a 批准、s 会话、r 拒绝并附原因;拒绝用 Esc(或 r)。
-    // 'n' 是 viewer 的下一 hunk 键,故意不在此映射(reducePrompt 内部仍支持,
-    // 但 diff 视图不把 'n' 路由给拒绝)。
-    const key = HOTKEY_TO_PROMPT_KEY[data];
-    if (key) {
-      return this.apply({ type: "hotkey", key });
-    }
-    if (matchesKey(data, "enter")) {
-      return this.apply({ type: "confirm" });
-    }
-    if (matchesKey(data, "escape")) {
-      return this.apply({ type: "cancel" });
-    }
-    return { kind: "ignored" };
   }
 
   // ── Private ─────────────────────────────────────────────────────────────
@@ -139,18 +164,22 @@ export class DiffPromptDecisionLayer implements DiffDecisionLayer {
     const rows: string[] = [];
     for (const key of OPTION_ORDER) {
       const label = OPTION_LABEL(key, this.labels);
+      const displayKey = this.config.optionKeys[key];
       const selected = this.state.highlightedKey === key;
       const marker = selected ? "▶" : " ";
-      const row = `${marker} (${DISPLAY_KEY[key]}) ${label}`;
+      const row = `${marker} (${displayKey}) ${label}`;
       rows.push(selected ? this.theme.fg("accent", row) : row);
     }
     if (this.state.hint) {
       rows.push(this.theme.fg("muted", this.state.hint));
     } else {
+      const move = `${keyLabel(this.kb.navUp[0] ?? "up")}/${keyLabel(this.kb.navDown[0] ?? "down")}`;
       rows.push(
         this.theme.fg(
           "muted",
-          "enter confirm · esc deny · r deny+reason · j/k=scroll · n/p=hunk",
+          `${move} move · ${keyLabel(this.kb.confirm[0] ?? "enter")} confirm · ` +
+            `${keyLabel(this.kb.deny[0] ?? "d")} deny · ` +
+            `${keyLabel(this.kb.denyWithReason[0] ?? "r")} deny+reason`,
         ),
       );
     }
@@ -191,17 +220,6 @@ export class DiffPromptDecisionLayer implements DiffDecisionLayer {
 
 const OPTION_ORDER: readonly PromptKey[] = ["y", "s", "n", "r"];
 
-/**
- * 决策行展示的键名。注意 'n' 显示为 "esc":'n' 是 viewer 的 hunk 导航键,
- * 拒绝以 Esc / r 表达,这里避免显示可误导的 "(n) No"(高亮 No+Enter 不可达)。
- */
-const DISPLAY_KEY: Record<PromptKey, string> = {
-  y: "y",
-  s: "s",
-  n: "esc",
-  r: "r",
-};
-
 function OPTION_LABEL(key: PromptKey, labels: DiffReviewLabels): string {
   switch (key) {
     case "y":
@@ -214,17 +232,6 @@ function OPTION_LABEL(key: PromptKey, labels: DiffReviewLabels): string {
       return labels.denyReason;
   }
 }
-
-/**
- * diff 决策键 → reducePrompt 的 PromptKey。注意不含 'n':'n' 是 viewer 的
- * hunk 导航键,拒绝以 Esc / r 表达(用户裁决 2026-08-10)。
- */
-const HOTKEY_TO_PROMPT_KEY: Record<string, PromptKey | undefined> = {
-  y: "y",
-  a: "y", // approve 别名
-  s: "s",
-  r: "r",
-};
 
 function isPrintable(data: string): boolean {
   if (data.length !== 1) {

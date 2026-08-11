@@ -153,7 +153,16 @@ export class ConfigStore
       EXTENSION_ROOT,
       { includeProjectScope: projectTrusted },
     );
-    const runtimeConfig = normalizePermissionSystemConfig(mergeResult.merged);
+    const runtimeConfig = normalizePermissionSystemConfig(
+      mergeResult.merged,
+      (droppedKey) => {
+        this.deps.logger.debug("config.keybindings", {
+          droppedKey,
+          warning:
+            "Dropping malformed keybinding value (never silently rebound).",
+        });
+      },
+    );
     // YOLO is a process-lifetime, in-memory toggle: never adopt a persisted
     // value (a fresh process starts non-YOLO), and preserve the in-process
     // toggle across session/reload/agent-turn refreshes. Only process exit

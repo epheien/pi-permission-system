@@ -118,7 +118,12 @@ describe("LocalUserAuthorizer", () => {
     await authorizer.authorize(makeDetails());
 
     expect(decisionFn).toHaveBeenCalledWith(
-      { mode: "tui", ui, doublePressToConfirm: true },
+      {
+        mode: "tui",
+        ui,
+        doublePressToConfirm: true,
+        keybindings: DEFAULT_EXTENSION_CONFIG.keybindings,
+      },
       "Permission Required",
       "Allow read?",
       undefined,
@@ -217,7 +222,12 @@ describe("LocalUserAuthorizer", () => {
       );
 
       expect(decisionFn).toHaveBeenCalledWith(
-        { mode: "tui", ui, doublePressToConfirm: true },
+        {
+          mode: "tui",
+          ui,
+          doublePressToConfirm: true,
+          keybindings: DEFAULT_EXTENSION_CONFIG.keybindings,
+        },
         "Permission Required (Subagent)",
         "Allow read?",
         undefined,

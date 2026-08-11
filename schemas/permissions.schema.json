@@ -21,7 +21,7 @@
     },
     "yoloMode": {
       "description": "Process-lifetime YOLO state — in-memory only, never persisted to this file. Accepted for backward compatibility; the value here is ignored.",
-      "markdownDescription": "Auto-approve `ask`-state checks, including subagent approval forwarding.\n\n⚠️ **Use with caution** — this disables all interactive confirmation prompts until you quit Pi.\n\nYOLO is an **in-memory, process-lifetime toggle**: once enabled it stays on across session switches, config reloads, and agent turns, and resets only when the **Pi process exits** (restarting naturally starts with it **off**). It is never persisted to config. Toggle it with the `yoloModeShortcut` hotkey (default `ctrl+alt+y`) or `/permission-system yolo`. A `yoloMode` value written in this file is accepted only for backward compatibility and **ignored** — it does not enable YOLO on startup.",
+      "markdownDescription": "Auto-approve `ask`-state checks, including subagent approval forwarding.\n\n⚠️ **Use with caution** — this disables all interactive confirmation prompts until you quit Pi.\n\nYOLO is an **in-memory, process-lifetime toggle**: once enabled it stays on across session switches, config reloads, and agent turns, and resets only when the **Pi process exits** (restarting naturally starts with it **off**). It is never persisted to config. Toggle it with the `keybindings.yoloToggle` hotkey (default `ctrl+alt+y`) or `/permission-system yolo`. A `yoloMode` value written in this file is accepted only for backward compatibility and **ignored** — it does not enable YOLO on startup.",
       "default": false,
       "type": "boolean"
     },
@@ -64,12 +64,6 @@
         "type": "string",
         "minLength": 1
       }
-    },
-    "yoloModeShortcut": {
-      "description": "TUI shortcut that toggles YOLO mode, as a pi KeyId (e.g. ctrl+alt+y). Blank disables the shortcut; absent uses the default ctrl+alt+y.",
-      "markdownDescription": "TUI keyboard shortcut that toggles YOLO mode, as a pi `KeyId` string (e.g. `ctrl+alt+y`, `ctrl+shift+y`).\n\n- **Absent** → the default `ctrl+alt+y` is used.\n- **Blank** → the shortcut is disabled (nothing is registered).\n- **Malformed** → ignored (nothing is registered; never a silently-different binding).\n\nOnly the interactive **TUI** dispatches extension shortcuts; headless runs use `/permission-system yolo` or the `getPermissionConfigService().toggleYoloMode()` API.",
-      "default": "ctrl+alt+y",
-      "type": "string"
     },
     "toolDiffPrompt": {
       "description": "When true and the tool is write or edit, ask prompts render an interactive diff view. Defaults to true.",
@@ -226,6 +220,11 @@
           }
         }
       ]
+    },
+    "keybindings": {
+      "description": "Per-action keyboard shortcut arrays. Empty array disables an action; omitted actions use built-in defaults. Style mirrors pi-show-diffs.json `keybindings`.",
+      "markdownDescription": "Per-action keyboard shortcut arrays (style mirrors `keybindings` in pi-show-diffs.json).\n\nEach value is an array of pi `KeyId` strings (e.g. `[\"y\", \"a\"]`); an **empty array disables** that action; omitted actions use the built-in defaults; writing an array **replaces** that action's keys (never additive).\n\nDecision keys (`approve` / `approveSession` / `deny` / `denyWithReason` / `confirm` / `cancel` / `navUp` / `navDown`) are shared by the overlay permission dialog and the interactive diff decision area. Diff-view navigation keys (`scrollUp`…`contextLess`) apply to the diff view only; `scrollUp`/`scrollDown`/`toggleExpand` are **disabled by default** (`↑/↓` moves the decision highlight instead). The `yoloToggle` action controls the YOLO-mode shortcut.\n\nMalformed key values are dropped fail-safe (never silently rebound); help text shows only the first key of each action.",
+      "$ref": "#/$defs/keybindings"
     }
   },
   "additionalProperties": false,
@@ -290,6 +289,167 @@
       "required": ["action"],
       "additionalProperties": false,
       "description": "Deny with an optional custom reason shown to the agent when the action is blocked."
+    },
+    "keybindings": {
+      "type": "object",
+      "properties": {
+        "approve": {
+          "description": "Approve once. Empty array disables the hotkey.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "approveSession": {
+          "description": "Approve for this session. Empty array disables.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "deny": {
+          "description": "Deny. Empty array disables.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "denyWithReason": {
+          "description": "Deny with a reason. Empty array disables.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "confirm": {
+          "description": "Confirm the highlighted option.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cancel": {
+          "description": "Cancel / go back.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "navUp": {
+          "description": "Move the highlight up.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "navDown": {
+          "description": "Move the highlight down.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scrollUp": {
+          "description": "Diff view: scroll up (disabled by default).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scrollDown": {
+          "description": "Diff view: scroll down (disabled by default).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "pageUp": {
+          "description": "Diff view: page up.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "pageDown": {
+          "description": "Diff view: page down.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scrollTop": {
+          "description": "Diff view: scroll to top.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scrollBottom": {
+          "description": "Diff view: scroll to bottom.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "nextHunk": {
+          "description": "Diff view: go to the next hunk.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "prevHunk": {
+          "description": "Diff view: go to the previous hunk.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "toggleMode": {
+          "description": "Diff view: toggle split/unified.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "toggleWrap": {
+          "description": "Diff view: toggle line wrap.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "toggleExpand": {
+          "description": "Diff view: toggle expand (currently unused).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "contextMore": {
+          "description": "Diff view: more context lines.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "contextLess": {
+          "description": "Diff view: fewer context lines.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "yoloToggle": {
+          "description": "Toggle YOLO mode.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "description": "Configurable keyboard shortcuts. Each value is an array of pi KeyId strings; an empty array disables that action; omitted actions use the built-in defaults."
     }
   }
 }

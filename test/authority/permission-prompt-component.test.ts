@@ -9,6 +9,19 @@ import {
   presentInlinePermissionPrompt,
   requestPermissionDecision,
 } from "#src/authority/permission-prompt-component";
+import type { DecisionKeybindings } from "#src/extension-config";
+
+/** The default decision keys the fake view carries. */
+const DEFAULT_KB: DecisionKeybindings = {
+  approve: ["y", "a"],
+  approveSession: ["s"],
+  deny: ["d"],
+  denyWithReason: ["r"],
+  confirm: ["enter"],
+  cancel: ["escape"],
+  navUp: ["up", "k"],
+  navDown: ["down", "j"],
+};
 
 // ── Fake TUI view harness ────────────────────────────────────────────────────
 
@@ -68,6 +81,7 @@ function makeFakeView(doublePressToConfirm: boolean, expandKey = CTRL_O) {
   const view = {
     mode: "tui",
     doublePressToConfirm,
+    keybindings: DEFAULT_KB,
     ui: {
       select: vi.fn(),
       input: vi.fn(),
@@ -84,7 +98,6 @@ const ENTER = "\r";
 const ESCAPE = "\u001b";
 /** Raw legacy control bytes: Ctrl+N (down) and Ctrl+P (up), like readline. */
 const CTRL_N = "\u000e";
-const CTRL_P = "\u0010";
 
 async function runPrompt(
   doublePressToConfirm: boolean,
@@ -201,8 +214,8 @@ describe("presentInlinePermissionPrompt", () => {
       expect(text).toContain("Press y again to approve.");
     });
 
-    it("resolves denied on n, n", async () => {
-      expect(await runPrompt(true, ["n", "n"])).toEqual({
+    it("resolves denied on d, d", async () => {
+      expect(await runPrompt(true, ["d", "d"])).toEqual({
         approved: false,
         state: "denied",
       });
@@ -234,14 +247,14 @@ describe("presentInlinePermissionPrompt", () => {
       });
     });
 
-    it("moves the highlight down on ctrl+n", async () => {
+    it("moves the highlight down on j", async () => {
       const { view, captured } = makeFakeView(true);
       const promise = presentInlinePermissionPrompt(
         view,
         "Permission Required",
         "Allow?",
       );
-      captured.component?.handleInput(CTRL_N);
+      captured.component?.handleInput("j");
       const text = captured.component?.render(80).join("\n") ?? "";
       expect(text).toContain("▶ (s)");
       expect(text).not.toContain("▶ (y)");
@@ -253,22 +266,23 @@ describe("presentInlinePermissionPrompt", () => {
       });
     });
 
-    it("moves the highlight up on ctrl+p (wrapping to the last option)", async () => {
+    it("moves the highlight up on k (wrapping to the last option)", async () => {
       const { view, captured } = makeFakeView(true);
       void presentInlinePermissionPrompt(view, "Permission Required", "Allow?");
-      captured.component?.handleInput(CTRL_P);
+      captured.component?.handleInput("k");
       const text = captured.component?.render(80).join("\n") ?? "";
       expect(text).toContain("▶ (r)");
       expect(text).not.toContain("▶ (y)");
     });
 
-    it("keeps ctrl+n/ctrl+p as an undocumented shortcut like j/k (no hint text)", () => {
+    it("ctrl+n/ctrl+p are no longer nav shortcuts by default (no hint text)", () => {
       const { view, captured } = makeFakeView(true);
       void presentInlinePermissionPrompt(view, "Permission Required", "Allow?");
-      const text = captured.component?.render(80).join("\n") ?? "";
-      expect(text).toContain("↑/↓ move");
-      expect(text).not.toContain("ctrl+n");
-      expect(text).not.toContain("ctrl+p");
+      captured.component?.handleInput(CTRL_N);
+      const afterCtrlN = captured.component?.render(80).join("\n") ?? "";
+      expect(afterCtrlN).toContain("▶ (y)"); // 不移动
+      expect(afterCtrlN).not.toContain("ctrl+n");
+      expect(afterCtrlN).not.toContain("ctrl+p");
     });
   });
 
@@ -314,8 +328,8 @@ describe("presentInlinePermissionPrompt", () => {
     });
 
     it("navigates back to the decision step on escape from the reason step", async () => {
-      // r opens reason, esc returns to decision, then n deny
-      expect(await runPrompt(false, ["r", ESCAPE, "n"])).toEqual({
+      // r opens reason, esc returns to decision, then d deny
+      expect(await runPrompt(false, ["r", ESCAPE, "d"])).toEqual({
         approved: false,
         state: "denied",
       });
@@ -370,8 +384,8 @@ describe("presentInlinePermissionPrompt", () => {
       );
     });
 
-    it("navigates to the serving-session scope on ctrl+n", async () => {
-      expect(await runPrompt(false, ["s", CTRL_N, ENTER], options)).toEqual({
+    it("navigates to the serving-session scope on j", async () => {
+      expect(await runPrompt(false, ["s", "j", ENTER], options)).toEqual({
         approved: true,
         state: "approved_for_serving_session",
       });

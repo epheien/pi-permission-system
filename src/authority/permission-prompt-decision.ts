@@ -4,6 +4,7 @@ import {
   type PermissionPromptDecision,
   type RequestPermissionOptions,
 } from "#src/authority/permission-dialog";
+import type { DecisionKeybindings } from "#src/extension-config";
 
 /**
  * Pure decision model for the overlay keybind permission dialog.
@@ -42,6 +43,11 @@ export interface PromptModelConfig {
    * default) or the whole serving session.
    */
   sessionScope?: NonNullable<RequestPermissionOptions["sessionScope"]>;
+  /**
+   * Display key per decision option (the first configured key of each action),
+   * used for the `(x)` marker and the `Press x again …` arming hint.
+   */
+  optionKeys: Record<PromptKey, string>;
 }
 
 /** The re-render view state the component draws from. */
@@ -66,6 +72,22 @@ export type PromptEvent =
   | { type: "confirm" }
   | { type: "cancel" }
   | { type: "submitReason"; draft: string };
+
+/**
+ * The display key for each decision option: the first configured key of that
+ * action, falling back to the `PromptKey` letter when the action is disabled
+ * (empty key array — no hotkey; the option stays reachable via nav + confirm).
+ */
+export function firstOptionKeys(
+  kb: DecisionKeybindings,
+): Record<PromptKey, string> {
+  return {
+    y: kb.approve[0] ?? "y",
+    s: kb.approveSession[0] ?? "s",
+    n: kb.deny[0] ?? "n",
+    r: kb.denyWithReason[0] ?? "r",
+  };
+}
 
 /** Either a re-render or a terminal decision. */
 export type PromptOutcome =
@@ -141,7 +163,7 @@ function pressHotkey(
     ...state,
     highlightedKey: key,
     armedKey: key,
-    hint: `Press ${key} again to ${OPTION_VERBS[key]}.`,
+    hint: `Press ${config.optionKeys[key]} again to ${OPTION_VERBS[key]}.`,
   });
 }
 

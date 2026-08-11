@@ -53,6 +53,7 @@ function register(): {
     makeConfigService({
       ...DEFAULT_EXTENSION_CONFIG,
     }) as never,
+    ["ctrl+alt+y"],
   );
   const [key, options] = registerShortcut.mock.calls[0] as [
     string,
@@ -79,7 +80,9 @@ describe("registerYoloModeShortcut", () => {
       yoloMode: true,
     });
     const registerShortcut = vi.fn();
-    registerYoloModeShortcut({ registerShortcut } as never, service as never);
+    registerYoloModeShortcut({ registerShortcut } as never, service as never, [
+      "ctrl+alt+y",
+    ]);
     const { handler } = registerShortcut.mock.calls[0][1] as {
       handler: (ctx: unknown) => void;
     };
@@ -102,7 +105,9 @@ describe("registerYoloModeShortcut", () => {
       yoloMode: false,
     });
     const registerShortcut = vi.fn();
-    registerYoloModeShortcut({ registerShortcut } as never, service as never);
+    registerYoloModeShortcut({ registerShortcut } as never, service as never, [
+      "ctrl+alt+y",
+    ]);
     const { handler } = registerShortcut.mock.calls[0][1] as {
       handler: (ctx: unknown) => void;
     };
@@ -122,7 +127,9 @@ describe("registerYoloModeShortcut", () => {
       throw new Error("disk full");
     });
     const registerShortcut = vi.fn();
-    registerYoloModeShortcut({ registerShortcut } as never, service as never);
+    registerYoloModeShortcut({ registerShortcut } as never, service as never, [
+      "ctrl+alt+y",
+    ]);
     const { handler } = registerShortcut.mock.calls[0][1] as {
       handler: (ctx: unknown) => void;
     };
@@ -136,8 +143,8 @@ describe("registerYoloModeShortcut", () => {
   });
 });
 
-describe("registerYoloModeShortcut with a configured shortcut key", () => {
-  function captureRegistration(shortcut?: string) {
+describe("registerYoloModeShortcut with configured shortcut keys", () => {
+  function captureRegistration(keys?: string[]) {
     const registerShortcut = vi.fn();
     const pi = { registerShortcut } as never;
     registerYoloModeShortcut(
@@ -145,34 +152,33 @@ describe("registerYoloModeShortcut with a configured shortcut key", () => {
       makeConfigService({
         ...DEFAULT_EXTENSION_CONFIG,
       }) as never,
-      shortcut,
+      keys ?? [],
     );
     return registerShortcut;
   }
 
-  it("registers a custom configured key (normalized)", () => {
-    const registerShortcut = captureRegistration("shift+ctrl+p");
-    expect(registerShortcut).toHaveBeenCalledWith(
+  it("逐键注册数组中的每个键", () => {
+    const registerShortcut = captureRegistration(["shift+ctrl+p", "ctrl+m"]);
+    expect(registerShortcut).toHaveBeenCalledTimes(2);
+    expect(registerShortcut).toHaveBeenNthCalledWith(
+      1,
       "ctrl+shift+p",
+      expect.objectContaining({ description: "Toggle YOLO mode" }),
+    );
+    expect(registerShortcut).toHaveBeenNthCalledWith(
+      2,
+      "ctrl+m",
       expect.objectContaining({ description: "Toggle YOLO mode" }),
     );
   });
 
-  it("registers the default ctrl+alt+y when no shortcut is given", () => {
-    const registerShortcut = captureRegistration(undefined);
-    expect(registerShortcut).toHaveBeenCalledWith(
-      "ctrl+alt+y",
-      expect.anything(),
-    );
+  it("空数组 → 不注册(禁用)", () => {
+    expect(captureRegistration([])).not.toHaveBeenCalled();
   });
 
-  it("registers nothing when the shortcut is explicitly disabled (blank)", () => {
-    const registerShortcut = captureRegistration("");
-    expect(registerShortcut).not.toHaveBeenCalled();
-  });
-
-  it("registers nothing for a malformed shortcut value", () => {
-    const registerShortcut = captureRegistration("foo+y");
-    expect(registerShortcut).not.toHaveBeenCalled();
+  it("非法元素被跳过, 合法元素照常注册", () => {
+    const registerShortcut = captureRegistration(["foo+y", "ctrl+p"]);
+    expect(registerShortcut).toHaveBeenCalledTimes(1);
+    expect(registerShortcut).toHaveBeenCalledWith("ctrl+p", expect.anything());
   });
 });

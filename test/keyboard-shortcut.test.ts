@@ -70,4 +70,20 @@ describe("parseShortcutKey", () => {
       reason: "invalid",
     });
   });
+
+  it("keeps an uppercase letter's case (uppercase G is the same key as g)", () => {
+    expect(parseShortcutKey("G")).toEqual({ ok: true, key: "G" });
+    expect(parseShortcutKey("Ctrl+G")).toEqual({
+      ok: true,
+      key: "ctrl+G",
+    });
+    expect(parseShortcutKey("Shift+G")).toEqual({
+      ok: true,
+      key: "shift+G",
+    });
+  });
+
+  it("keeps a lowercase letter lowercase", () => {
+    expect(parseShortcutKey("g")).toEqual({ ok: true, key: "g" });
+  });
 });

@@ -25,9 +25,12 @@ Permission enforcement extension for the [Pi](https://pi.mariozechner.at/) codin
 - **Broadcasts UI prompt events** — `permissions:ui_prompt` fires only when the permission system is about to invoke the active user-facing permission UI
 - **Native [`@gotgenes/pi-subagents`](https://github.com/gotgenes/pi-subagents) integration** — in-process child sessions register with the permission system automatically, enabling per-agent policy enforcement and `ask`-state forwarding to the parent UI without configuration
 - **Public YOLO-mode config service** — `getPermissionConfigService()` reads and toggles YOLO mode.
-  A configurable TUI shortcut (default `ctrl+alt+y`, set `yoloModeShortcut` in `config.json` or use `""` to disable) toggles it anytime, and `/permission-system yolo` is the headless/CLI path.
+  A configurable TUI shortcut (default `ctrl+alt+y`, set `keybindings.yoloToggle` in `config.json`) toggles it anytime, and `/permission-system yolo` is the headless/CLI path.
   YOLO is **process-lifetime** — an in-memory toggle that is never persisted.
   Once enabled it stays on until you quit Pi (restarting starts with it off).
+- **Configurable keybindings** — every shortcut (YOLO toggle, overlay dialog decision/nav keys, diff-view navigation) can be rebound via the `keybindings` config block, styled after pi-show-diffs.json.
+  Empty arrays disable an action, and help shows only the first key.
+  See [docs/configuration.md](docs/configuration.md#可配置快捷键-keybindings).
 
 ## Install
 
@@ -70,7 +73,8 @@ All permissions use one of three states:
 | `ask`   | Prompts the user for confirmation via UI |
 
 When the dialog prompts, you can approve once or approve a pattern for the rest of the session.
-In an interactive TUI session the prompt is a bottom-anchored overlay keybind dialog — `y` approve, `s` approve for this session, `n` deny, `r` deny with a reason — where each hotkey arms and a second press confirms (configurable via `doublePressToConfirm`).
+In an interactive TUI session the prompt is a bottom-anchored overlay keybind dialog — `y` approve, `s` approve for this session, `d` deny, `r` deny with a reason — where each hotkey arms and a second press confirms (configurable via `doublePressToConfirm`).
+All keys are rebindable via the `keybindings` config block (defaults shown).
 Pi's tool-expansion binding (`app.tools.expand`, `Ctrl+O` by default) keeps working while the dialog is open, so you can expand a truncated tool preview before deciding.
 See [docs/configuration.md](docs/configuration.md#overlay-permission-dialog-tui) for the hotkeys and [docs/session-approvals.md](docs/session-approvals.md) for session-scoped rules and pattern suggestions.
 

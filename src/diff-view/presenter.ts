@@ -1,5 +1,6 @@
 import type { Component } from "@earendil-works/pi-tui";
 import { DiffAskComponent } from "./component.js";
+import type { DiffKeybindings } from "./keybindings.js";
 import { computeChangePreview } from "./preview.js";
 
 export type DiffToolName = "write" | "edit";
@@ -39,6 +40,8 @@ export interface DiffReviewInput {
   labels: DiffReviewLabels;
   defaultView: "split" | "unified";
   decisionLayer: DiffDecisionLayer;
+  /** The diff-view navigation keys, projected from the shared config. */
+  viewerKeybindings: DiffKeybindings;
 }
 
 /** diff-view 最小 TUI 表面:真实 SDK Tui 结构上满足此接口 */

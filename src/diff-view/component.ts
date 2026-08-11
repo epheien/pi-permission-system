@@ -1,5 +1,4 @@
 import type { Component } from "@earendil-works/pi-tui";
-import { DEFAULT_KEYBINDINGS } from "./keybindings.js";
 import type {
   DecisionLayerResult,
   DiffDecisionLayer,
@@ -47,7 +46,7 @@ export class DiffAskComponent implements Component {
       preview,
       "default",
       true,
-      DEFAULT_KEYBINDINGS,
+      input.viewerKeybindings,
       input.defaultView,
       "full",
       input.cwd,

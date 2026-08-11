@@ -70,21 +70,25 @@ export type ShortcutKeyParse =
  *   default").
  * - malformed → `{ ok: false, reason: "invalid" }` — the caller must NOT
  *   register anything (never a silently-different binding).
- * - valid → the canonical lowercase form with modifiers in a fixed order
+ * - valid → the canonical form with modifiers in a fixed order
  *   (`ctrl+shift+alt+super`), e.g. `"Y + Alt + CTRL"` → `"ctrl+alt+y"`.
+ *   A single **letter** keeps its original case (`"G"` → `"G"`, `"y + Alt + CTRL"`
+ *   → `"ctrl+alt+y"`): `g` and `G` are the same key in a terminal (Shift and
+ *   CapsLock produce the same character), and the matching layer treats single
+ *   letters case-insensitively.
  */
 export function parseShortcutKey(input: string | undefined): ShortcutKeyParse {
   if (input === undefined) {
     return { ok: false, reason: "empty" };
   }
 
-  const parts = input
+  const rawParts = input
     .trim()
-    .toLowerCase()
     .split("+")
     .map((part) => part.trim());
-  if (parts.length === 0 || parts.some((part) => part === "")) {
-    return parts.length === 1
+  const lowerParts = rawParts.map((part) => part.toLowerCase());
+  if (lowerParts.length === 0 || lowerParts.some((part) => part === "")) {
+    return lowerParts.length === 1
       ? { ok: false, reason: "empty" }
       : {
           ok: false,
@@ -92,12 +96,17 @@ export function parseShortcutKey(input: string | undefined): ShortcutKeyParse {
         };
   }
 
-  const base = parts[parts.length - 1];
+  // 字母 base 保留原始大小写(g 与 G 是同一个键——终端发的是字符,分不清
+  // Shift 与 CapsLock,匹配层按大小写等价处理);其余键(数字/符号/特殊键)
+  // 规范为小写 canonical。
+  const rawBase = rawParts[rawParts.length - 1]!;
+  const lowerBase = lowerParts[lowerParts.length - 1]!;
+  const base = /^[A-Za-z]$/.test(rawBase) ? rawBase : lowerBase;
   if (!isBaseKey(base)) {
     return { ok: false, reason: "invalid" };
   }
 
-  const modifiers = parts.slice(0, -1);
+  const modifiers = lowerParts.slice(0, -1);
   if (
     modifiers.some((modifier) => !MODIFIER_SET.has(modifier)) ||
     new Set(modifiers).size !== modifiers.length
@@ -117,10 +126,11 @@ export function parseShortcutKey(input: string | undefined): ShortcutKeyParse {
 }
 
 function isBaseKey(key: string): boolean {
+  const lower = key.toLowerCase();
   return (
-    /^[a-z]$/.test(key) ||
+    /^[a-z]$/.test(lower) ||
     /^[0-9]$/.test(key) ||
-    SYMBOL_KEYS.has(key) ||
-    SPECIAL_KEYS.has(key)
+    SYMBOL_KEYS.has(lower) ||
+    SPECIAL_KEYS.has(lower)
   );
 }

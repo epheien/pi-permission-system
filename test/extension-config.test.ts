@@ -2,13 +2,15 @@ import { chmodSync, mkdirSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, test } from "vitest";
-
-import type { PermissionSystemExtensionConfig } from "#src/extension-config";
+import { DEFAULT_KEYBINDINGS as DEFAULT_VIEW_KEYBINDINGS } from "#src/diff-view/keybindings";
 import {
+  DEFAULT_KEYBINDINGS,
   detectMisplacedPermissionKeys,
   ensurePermissionSystemLogsDirectory,
   isYoloModeEnabled,
+  normalizeKeybindings,
   normalizePermissionSystemConfig,
+  type PermissionSystemExtensionConfig,
 } from "#src/extension-config";
 
 function makeConfig(
@@ -98,7 +100,13 @@ describe("normalizePermissionSystemConfig", () => {
       permissionReviewLog: false,
       yoloMode: true,
       doublePressToConfirm: true,
+      keybindings: DEFAULT_KEYBINDINGS,
     });
+  });
+
+  it("always carries a full merged keybindings", () => {
+    const result = normalizePermissionSystemConfig({});
+    expect(result.keybindings).toEqual(DEFAULT_KEYBINDINGS);
   });
 
   it("defaults debugLog to false when missing", () => {
@@ -179,23 +187,6 @@ describe("normalizePermissionSystemConfig", () => {
     const result = normalizePermissionSystemConfig({});
     expect("authorizerChain" in result).toBe(false);
   });
-
-  it("includes yoloModeShortcut when provided", () => {
-    const result = normalizePermissionSystemConfig({
-      yoloModeShortcut: "ctrl+shift+y",
-    });
-    expect(result.yoloModeShortcut).toBe("ctrl+shift+y");
-  });
-
-  it("carries a blank yoloModeShortcut through as an explicit disable", () => {
-    const result = normalizePermissionSystemConfig({ yoloModeShortcut: "" });
-    expect(result.yoloModeShortcut).toBe("");
-  });
-
-  it("omits yoloModeShortcut when absent", () => {
-    const result = normalizePermissionSystemConfig({});
-    expect("yoloModeShortcut" in result).toBe(false);
-  });
 });
 
 describe("toolDiffPrompt config", () => {
@@ -245,6 +236,76 @@ describe("ensurePermissionSystemLogsDirectory", () => {
 
     expect(ensurePermissionSystemLogsDirectory(logsDir)).toBe(undefined);
     expect(statSync(logsDir).mode & 0o777).toBe(0o700);
+  });
+});
+
+describe("keybindings 归一", () => {
+  it("缺省 → 完整默认表", () => {
+    const kb = normalizeKeybindings({});
+    expect(kb.approve).toEqual(["y"]);
+    expect(kb.deny).toEqual(["d"]);
+    expect(kb.scrollUp).toEqual([]);
+    expect(kb.scrollDown).toEqual([]);
+    expect(kb.yoloToggle).toEqual(["ctrl+alt+y"]);
+    expect(kb.scrollTop).toEqual(["home"]);
+    expect(kb.contextMore).toEqual(["right", "]"]);
+  });
+
+  it("部分覆盖 = 该 action 整体替换, 其余保持默认", () => {
+    const kb = normalizeKeybindings({
+      keybindings: { approve: ["z", "q"], deny: [] },
+    });
+    expect(kb.approve).toEqual(["z", "q"]);
+    expect(kb.deny).toEqual([]); // [] = 禁用
+    expect(kb.approveSession).toEqual(["s"]);
+    expect(kb.nextHunk).toEqual(["n"]);
+  });
+
+  it("非法元素被丢弃并回调告警; 全部非法 → []", () => {
+    const dropped: string[] = [];
+    const kb = normalizeKeybindings(
+      { keybindings: { approve: ["y", "foo+y"] } },
+      (key) => dropped.push(key),
+    );
+    expect(kb.approve).toEqual(["y"]);
+    expect(dropped).toEqual(["foo+y"]);
+    const kb2 = normalizeKeybindings({ keybindings: { cancel: ["bogus"] } });
+    expect(kb2.cancel).toEqual([]);
+  });
+
+  it("规范化修饰符顺序", () => {
+    const kb = normalizeKeybindings({
+      keybindings: { yoloToggle: [" Alt + CTRL + y "] },
+    });
+    expect(kb.yoloToggle).toEqual(["ctrl+alt+y"]);
+  });
+
+  it("yoloToggle 优先, 否则用默认", () => {
+    expect(
+      normalizeKeybindings({ keybindings: { yoloToggle: ["ctrl+w"] } })
+        .yoloToggle,
+    ).toEqual(["ctrl+w"]);
+    expect(normalizeKeybindings({}).yoloToggle).toEqual(["ctrl+alt+y"]);
+  });
+
+  it("查看键子集与 diff-view 默认一致(防漂移)", () => {
+    for (const key of [
+      "scrollUp",
+      "scrollDown",
+      "pageUp",
+      "pageDown",
+      "scrollTop",
+      "scrollBottom",
+      "nextHunk",
+      "prevHunk",
+      "toggleMode",
+      "toggleWrap",
+      "toggleExpand",
+      "contextMore",
+      "contextLess",
+    ] as const) {
+      expect(DEFAULT_KEYBINDINGS[key]).toEqual(DEFAULT_VIEW_KEYBINDINGS[key]);
+    }
   });
 });
 

@@ -486,6 +486,7 @@ export class DiffViewer implements Component {
     layout: ViewerLayout,
   ): (() => boolean) | undefined {
     const keymap = this.buildKeymap(layout);
+    // 单字母键严格区分大小写(y 与 Y 是两个键);组合键交 matchesKey。
     const direct = keymap.get(data);
     if (direct) return direct;
     for (const [key, action] of keymap) {
@@ -672,28 +673,28 @@ export class DiffViewer implements Component {
         down: "↓",
         left: "←",
         right: "→",
-        pageUp: "PgUp",
-        pageDown: "PgDn",
+        pageup: "PgUp",
+        pagedown: "PgDn",
         home: "Home",
         end: "End",
-        Escape: "Esc",
         escape: "Esc",
-        Tab: "Tab",
         tab: "Tab",
       };
+      // 单字母键显示保留配置原文大小写(g 与 G 是两个不同的键)。
       return labels[key] ?? key;
     };
-    const formatBinding = (binding: string[] | false): string | null => {
-      if (!binding || binding.length === 0) return null;
-      return binding.map(keyLabel).join("/");
+    // 帮助信息只显示每个 action 的第一个快捷键(有多个时)。
+    const formatBinding = (binding: string[]): string | null => {
+      if (binding.length === 0) return null;
+      return keyLabel(binding[0]!);
     };
-    const fmt = (binding: string[] | false, label: string): string | null => {
+    const fmt = (binding: string[], label: string): string | null => {
       const keys = formatBinding(binding);
       return keys ? `${keys} ${label}` : null;
     };
     const fmtPair = (
-      first: string[] | false,
-      second: string[] | false,
+      first: string[],
+      second: string[],
       label: string,
     ): string | null => {
       const firstKeys = formatBinding(first);
@@ -716,8 +717,6 @@ export class DiffViewer implements Component {
         : null,
       hasStructuredDiff ? fmt(kb.toggleMode, "split/unified") : null,
       fmt(kb.toggleWrap, "wrap"),
-      fmt(kb.approve, t("ui.footerApproveAction", "approve")),
-      fmt(kb.reject, t("ui.footerRejectAction", "reject")),
     ].filter((part): part is string => part !== null);
     return [
       truncateToWidth(

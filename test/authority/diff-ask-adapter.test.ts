@@ -8,7 +8,10 @@ import {
 import { createDeniedPermissionDecision } from "#src/authority/permission-dialog";
 import type { PromptPermissionDetails } from "#src/authority/permission-prompter";
 import type { DiffReviewLabels } from "#src/diff-view/presenter";
-import type { PermissionSystemExtensionConfig } from "#src/extension-config";
+import type {
+  DecisionKeybindings,
+  PermissionSystemExtensionConfig,
+} from "#src/extension-config";
 
 function mk(
   overrides: Partial<PromptPermissionDetails> = {},
@@ -35,6 +38,17 @@ const LABELS: DiffReviewLabels = {
   denyReason: "No, provide reason",
 };
 
+const DEFAULT_KB: DecisionKeybindings = {
+  approve: ["y"],
+  approveSession: ["s"],
+  deny: ["d"],
+  denyWithReason: ["r"],
+  confirm: ["enter"],
+  cancel: ["escape"],
+  navUp: ["up", "k"],
+  navDown: ["down", "j"],
+};
+
 function makeLayer(
   overrides: {
     doublePressToConfirm?: boolean;
@@ -45,6 +59,7 @@ function makeLayer(
     labels: LABELS,
     doublePressToConfirm: overrides.doublePressToConfirm ?? false,
     sessionScope: overrides.sessionScope,
+    keybindings: DEFAULT_KB,
   });
 }
 
@@ -189,12 +204,9 @@ describe("DiffPromptDecisionLayer", () => {
     });
   });
 
-  it("a 是 approve 别名", () => {
+  it("a 不再是默认 approve 键(默认仅 y)→ ignored", () => {
     const layer = makeLayer();
-    expect(layer.handleInput("a")).toEqual({
-      kind: "decision",
-      decision: { kind: "approve" },
-    });
+    expect(layer.handleInput("a")).toEqual({ kind: "ignored" });
   });
 
   it("double-press 下 y,y 批准、单次 y arm", () => {
@@ -280,27 +292,29 @@ describe("DiffPromptDecisionLayer", () => {
     expect(layer.handleInput("n")).toEqual({ kind: "ignored" });
   });
 
-  it("j/k 等查看键 → ignored", () => {
+  it("j/k/↑↓ 在 decision 步移动高亮(consumed)", () => {
     const layer = makeLayer();
-    for (const key of ["j", "k", "\t", "w"]) {
+    expect(layer.handleInput("j")).toEqual({ kind: "consumed" });
+    expect(layer.render(80).join("\n")).toContain("▶ (s)");
+    expect(layer.handleInput("\u001b[A")).toEqual({ kind: "consumed" });
+    expect(layer.render(80).join("\n")).toContain("▶ (y)");
+  });
+
+  it("未绑定的查看键 → ignored", () => {
+    const layer = makeLayer();
+    for (const key of ["w", "\t", "x"]) {
       expect(layer.handleInput(key)).toEqual({ kind: "ignored" });
     }
   });
 
-  it("↑↓ 在 decision 步 → ignored(交 viewer 滚动)", () => {
-    const layer = makeLayer();
-    expect(layer.handleInput("\u001b[B")).toEqual({ kind: "ignored" });
-    expect(layer.handleInput("\u001b[A")).toEqual({ kind: "ignored" });
-  });
-
-  it("render 输出四选项行与提示", () => {
+  it("render 输出四选项行与提示(显示首键)", () => {
     const layer = makeLayer();
     const rows = layer.render(80).join("\n");
     expect(rows).toContain("(y) Yes");
     expect(rows).toContain("(s) Yes, for this session");
-    expect(rows).toContain("(esc) No");
+    expect(rows).toContain("(d) No");
     expect(rows).toContain("(r) No, provide reason");
-    expect(rows).toContain("esc deny");
+    expect(rows).toContain("d deny");
   });
 
   it("ctrl+n/ctrl+p 在 decision 步已被替换为 viewer 查看(不导航选项)→ ignored", () => {

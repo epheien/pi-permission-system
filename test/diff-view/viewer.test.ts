@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildStructuredDiff } from "#src/diff-view/diff-utils";
-import { DEFAULT_KEYBINDINGS } from "#src/diff-view/keybindings";
+import {
+  DEFAULT_KEYBINDINGS,
+  type DiffKeybindings,
+} from "#src/diff-view/keybindings";
 import type { ChangePreview } from "#src/diff-view/preview";
 import { DiffViewer } from "#src/diff-view/viewer";
 
@@ -71,5 +74,108 @@ describe("DiffViewer(裁剪)", () => {
   it("maxHeight 上限裁剪不要超高", () => {
     const v = makeViewer("unified", 12);
     expect(v.render(80).length).toBeLessThanOrEqual(12);
+  });
+  it("scrollUp/scrollDown 默认禁用:↑↓ 不滚动", () => {
+    const v = makeViewer();
+    expect(v.handleInput("\u001b[B")).toBe(false);
+    expect(v.handleInput("\u001b[A")).toBe(false);
+  });
+  it("footer 只显示每个 action 的第一个键", () => {
+    const kb: DiffKeybindings = {
+      ...DEFAULT_KEYBINDINGS,
+      scrollUp: ["up"],
+      scrollDown: ["down"],
+      nextHunk: ["n", "j"],
+    };
+    const v = new DiffViewer(
+      tui as never,
+      theme as never,
+      makePreview(),
+      "default",
+      true,
+      kb,
+      "unified",
+      "full",
+      "/",
+      undefined,
+    );
+    // 用宽画布断言 footer,避免窄宽度把尾部项截断。
+    const text = v.render(200).join("\n");
+    expect(text).toContain("↑/↓ scroll");
+    expect(text).toContain("n next");
+    expect(text).not.toContain("n/j");
+    // 决策键(y approve / d reject)统一由决策层渲染,viewer footer 不再显示。
+    expect(text).not.toContain("approve");
+    expect(text).not.toContain("reject");
+  });
+  it("footer 显示原文大小写, 匹配严格区分大小写", () => {
+    const kb: DiffKeybindings = {
+      ...DEFAULT_KEYBINDINGS,
+      toggleMode: ["G"],
+    };
+    const v = new DiffViewer(
+      tui as never,
+      theme as never,
+      makePreview(),
+      "default",
+      true,
+      kb,
+      "unified",
+      "full",
+      "/",
+      undefined,
+    );
+    expect(v.render(200).join("\n")).toContain("G split/unified"); // 显示原文大写
+    expect(v.handleInput("G")).toBe(true); // 严格大写命中
+    expect(v.viewMode()).toBe("split");
+    const v2 = new DiffViewer(
+      tui as never,
+      theme as never,
+      makePreview(),
+      "default",
+      true,
+      kb,
+      "unified",
+      "full",
+      "/",
+      undefined,
+    );
+    expect(v2.handleInput("g")).toBe(false); // 严格:小写 g 不命中大写 G
+    expect(v2.viewMode()).toBe("unified");
+  });
+  it("大小写严格区分: 大写 Y 切视图, 小写 y 切 wrap", () => {
+    const kb: DiffKeybindings = {
+      ...DEFAULT_KEYBINDINGS,
+      toggleMode: ["Y"],
+      toggleWrap: ["y"],
+    };
+    const a = new DiffViewer(
+      tui as never,
+      theme as never,
+      makePreview(),
+      "default",
+      true,
+      kb,
+      "unified",
+      "full",
+      "/",
+      undefined,
+    );
+    expect(a.handleInput("Y")).toBe(true); // toggleMode(大写 Y)
+    expect(a.viewMode()).toBe("split");
+    const b = new DiffViewer(
+      tui as never,
+      theme as never,
+      makePreview(),
+      "default",
+      true,
+      kb,
+      "unified",
+      "full",
+      "/",
+      undefined,
+    );
+    expect(b.handleInput("y")).toBe(true); // toggleWrap(小写 y)
+    expect(b.viewMode()).toBe("unified");
   });
 });

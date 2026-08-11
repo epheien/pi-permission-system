@@ -2,11 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import { DiffPromptDecisionLayer } from "#src/authority/diff-ask-adapter";
 import { DiffAskComponent } from "#src/diff-view/component";
 import { buildStructuredDiff } from "#src/diff-view/diff-utils";
+import { DEFAULT_KEYBINDINGS } from "#src/diff-view/keybindings";
 import type {
   DiffReviewInput,
   DiffReviewLabels,
 } from "#src/diff-view/presenter";
 import type { ChangePreview } from "#src/diff-view/preview";
+import type { DecisionKeybindings } from "#src/extension-config";
 import { PanelFrame } from "#src/ui/panel-frame";
 
 const theme = {
@@ -22,6 +24,17 @@ const labels: DiffReviewLabels = {
   session: "Yes, for this session",
   deny: "No",
   denyReason: "No, provide reason",
+};
+
+const DECISION_KB: DecisionKeybindings = {
+  approve: ["y"],
+  approveSession: ["s"],
+  deny: ["d"],
+  denyWithReason: ["r"],
+  confirm: ["enter"],
+  cancel: ["escape"],
+  navUp: ["up", "k"],
+  navDown: ["down", "j"],
 };
 
 function makePreview(lines = 2): ChangePreview {
@@ -57,6 +70,7 @@ function makeFramedOverlay(
   const decisionLayer = new DiffPromptDecisionLayer({
     labels,
     doublePressToConfirm: false,
+    keybindings: DECISION_KB,
   });
   const input: DiffReviewInput = {
     toolName: "write",
@@ -65,6 +79,7 @@ function makeFramedOverlay(
     labels,
     defaultView,
     decisionLayer,
+    viewerKeybindings: DEFAULT_KEYBINDINGS,
   };
   const inner = new DiffAskComponent(
     tui as never,
@@ -98,6 +113,15 @@ describe("diff overlay 高度(回归:下边框被裁)", () => {
     const { lines } = makeFramedOverlay(44, 400);
     expect(lines.length).toBeLessThanOrEqual(44);
     expect(lines[lines.length - 1]).toContain("└");
+  });
+  it("viewer 与决策区之间恰好 1 行空行, 不叠加为 2 行", () => {
+    const isBlank = (line: string) =>
+      line.replaceAll("│", "").replaceAll("┌", "").replaceAll("└", "").trim() === "";
+    const { lines } = makeFramedOverlay(44);
+    const idx = lines.findIndex((line) => line.includes("(y) Yes"));
+    expect(idx).toBeGreaterThan(1);
+    expect(isBlank(lines[idx - 1])).toBe(true); // 唯一的组件分隔空行
+    expect(isBlank(lines[idx - 2])).toBe(false); // 前一行是 viewer 内容, 不能也是空行
   });
   // 审查实测:旧实现 Math.max(4,…) 视口下限在极矮终端仍溢出(unified 18 行→20、
   // split 20 行→22)。显式预算下严格吃满剩余行。物理地板:viewer 最小输出 =

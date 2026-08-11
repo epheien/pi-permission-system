@@ -209,7 +209,7 @@ export default function piPermissionSystemExtension(pi: ExtensionAPI): void {
   registerYoloModeShortcut(
     pi,
     configService,
-    configStore.current().yoloModeShortcut,
+    configStore.current().keybindings.yoloToggle,
   );
 
   const permissionsService = new LocalPermissionsService(

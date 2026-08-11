@@ -15,6 +15,7 @@ import {
   requestPermissionDecisionFromUi,
 } from "#src/authority/permission-dialog";
 import {
+  firstOptionKeys,
   initialPromptState,
   type PromptEvent,
   type PromptKey,
@@ -22,6 +23,15 @@ import {
   type PromptViewState,
   reducePrompt,
 } from "#src/authority/permission-prompt-decision";
+import {
+  keyLabel,
+  matchCancel,
+  matchConfirm,
+  matchDecisionHotkey,
+  matchNavDown,
+  matchNavUp,
+} from "#src/authority/prompt-key-matcher";
+import type { DecisionKeybindings } from "#src/extension-config";
 import { PanelFrame } from "#src/ui/panel-frame";
 
 /**
@@ -48,6 +58,8 @@ export interface PermissionPromptView {
   mode: ExtensionContext["mode"];
   ui: PermissionPromptUi;
   doublePressToConfirm: boolean;
+  /** The configured decision keys, read live at prompt time. */
+  keybindings: DecisionKeybindings;
 }
 
 /** Live prompt-behavior preferences read at prompt time (see `doublePressToConfirm`). */
@@ -106,12 +118,14 @@ export function presentInlinePermissionPrompt(
     doublePressToConfirm: view.doublePressToConfirm,
     sessionLabel: options?.sessionLabel ?? DEFAULT_SESSION_LABEL,
     sessionScope: options?.sessionScope,
+    optionKeys: firstOptionKeys(view.keybindings),
   };
   return view.ui.custom<PermissionPromptDecision>(
     (tui, theme, keybindings, done) => {
       const prompt = new PermissionPromptComponent(
         theme,
         config,
+        view.keybindings,
         title,
         message,
         (data) => handleToolsExpandAction(data, keybindings, view.ui),
@@ -163,6 +177,7 @@ class PermissionPromptComponent implements Component {
   constructor(
     private readonly theme: PromptTheme,
     private readonly config: PromptModelConfig,
+    private readonly keybindings: DecisionKeybindings,
     private readonly title: string,
     private readonly message: string,
     private readonly handleAppAction: (data: string) => boolean,
@@ -227,31 +242,23 @@ class PermissionPromptComponent implements Component {
   }
 
   private toEvent(data: string): PromptEvent | undefined {
-    if (
-      matchesKey(data, "up") ||
-      matchesKey(data, "k") ||
-      matchesKey(data, "ctrl+p")
-    ) {
-      return { type: "nav", direction: "up" };
-    }
-    if (
-      matchesKey(data, "down") ||
-      matchesKey(data, "j") ||
-      matchesKey(data, "ctrl+n")
-    ) {
-      return { type: "nav", direction: "down" };
-    }
-    if (matchesKey(data, "enter")) {
-      return { type: "confirm" };
-    }
-    if (matchesKey(data, "escape")) {
-      return { type: "cancel" };
-    }
     if (this.state.step === "decision") {
-      const key = OPTION_ORDER.find((option) => matchesKey(data, option));
+      const key = matchDecisionHotkey(this.keybindings, data);
       if (key) {
         return { type: "hotkey", key };
       }
+    }
+    if (matchNavUp(this.keybindings, data)) {
+      return { type: "nav", direction: "up" };
+    }
+    if (matchNavDown(this.keybindings, data)) {
+      return { type: "nav", direction: "down" };
+    }
+    if (matchConfirm(this.keybindings, data)) {
+      return { type: "confirm" };
+    }
+    if (matchCancel(this.keybindings, data)) {
+      return { type: "cancel" };
     }
     return undefined;
   }
@@ -273,19 +280,26 @@ class PermissionPromptComponent implements Component {
     const lines = [this.theme.fg("accent", this.title), this.message, ""];
     for (const key of OPTION_ORDER) {
       const label = key === "s" ? this.config.sessionLabel : OPTION_LABELS[key];
+      const displayKey = this.config.optionKeys[key];
       const selected = this.state.highlightedKey === key;
       const marker = selected ? "▶" : " ";
-      const row = `${marker} (${key}) ${label}`;
+      const row = `${marker} (${displayKey}) ${label}`;
       lines.push(selected ? this.theme.fg("accent", row) : row);
     }
     lines.push("");
-    lines.push(
-      this.state.hint ||
-        this.theme.fg(
-          "muted",
-          "↑/↓ move · enter confirm · esc deny · press a letter, then again to confirm",
-        ),
-    );
+    if (!this.state.hint) {
+      const kb = this.keybindings;
+      const move = `${keyLabel(kb.navUp[0] ?? "up")}/${keyLabel(kb.navDown[0] ?? "down")}`;
+      const hint =
+        `${move} move · ${keyLabel(kb.confirm[0] ?? "enter")} confirm · ` +
+        `${keyLabel(kb.deny[0] ?? "d")} deny` +
+        (this.config.doublePressToConfirm
+          ? " · press a letter, then again to confirm"
+          : "");
+      lines.push(this.theme.fg("muted", hint));
+    } else {
+      lines.push(this.theme.fg("muted", this.state.hint));
+    }
     return lines;
   }
 

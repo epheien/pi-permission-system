@@ -61,12 +61,45 @@ describe("unifiedConfigSchema", () => {
       });
       expect(result.success).toBe(true);
     });
+
+    it("accepts a keybindings block with known actions", () => {
+      const result = unifiedConfigSchema.safeParse({
+        keybindings: {
+          approve: ["y"],
+          deny: ["d"],
+          nextHunk: ["n"],
+          scrollUp: [],
+          yoloToggle: ["ctrl+alt+y"],
+        },
+      });
+      expect(result.success).toBe(true);
+    });
   });
 
   describe("invalid configs are rejected", () => {
     it("rejects an unknown top-level key", () => {
       const result = unifiedConfigSchema.safeParse({ unknownField: "x" });
       expect(result.success).toBe(false);
+    });
+
+    it("rejects an unknown keybindings action name", () => {
+      const result = unifiedConfigSchema.safeParse({
+        keybindings: { approve: ["y"], nopeAction: ["x"] },
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0]?.code).toBe("unrecognized_keys");
+      }
+    });
+
+    it("rejects a non-array keybindings value", () => {
+      const result = unifiedConfigSchema.safeParse({
+        keybindings: { deny: "d" },
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0]?.path).toEqual(["keybindings", "deny"]);
+      }
     });
 
     it("rejects a non-boolean debugLog", () => {
@@ -210,6 +243,7 @@ describe("buildPermissionsJsonSchema", () => {
     const defs = schema.$defs as Record<string, unknown>;
     expect(Object.keys(defs).sort()).toEqual([
       "denyWithReason",
+      "keybindings",
       "permissionMap",
       "permissionState",
     ]);

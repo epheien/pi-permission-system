@@ -230,14 +230,6 @@ export function mergeUnifiedConfigs(
     }
   }
 
-  // String scalars: override replaces base when defined
-  for (const key of ["yoloModeShortcut"] as const) {
-    const value = override[key] ?? base[key];
-    if (value !== undefined) {
-      merged[key] = value;
-    }
-  }
-
   // Array fields: override replaces base when defined
   for (const key of ["piInfrastructureReadPaths", "authorizerChain"] as const) {
     const value = override[key] ?? base[key];
@@ -279,6 +271,19 @@ export function mergeUnifiedConfigs(
     merged.subagentPermission = baseSub;
   } else if (overrideSub) {
     merged.subagentPermission = overrideSub;
+  }
+
+  // keybindings: shallow-merge per action so a project entry overrides a
+  // single action's keys but never drops other global actions (a dropped
+  // binding is a silent behavior change).
+  const baseKb = base.keybindings;
+  const overrideKb = override.keybindings;
+  if (baseKb && overrideKb) {
+    merged.keybindings = { ...baseKb, ...overrideKb };
+  } else if (baseKb) {
+    merged.keybindings = baseKb;
+  } else if (overrideKb) {
+    merged.keybindings = overrideKb;
   }
 
   return merged;

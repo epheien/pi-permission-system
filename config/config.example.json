@@ -4,7 +4,6 @@
   "debugLog": false,
   "permissionReviewLog": true,
   "doublePressToConfirm": true,
-  "yoloModeShortcut": "ctrl+alt+y",
   "toolDiffDefaultView": "unified",
 
   "toolInputPreviewMaxLength": 400,
@@ -13,6 +12,22 @@
   "piInfrastructureReadPaths": [],
 
   "authorizerChain": [],
+
+  "keybindings": {
+    "approve": ["y"],
+    "approveSession": ["s"],
+    "deny": ["d"],
+    "denyWithReason": ["r"],
+    "confirm": ["enter"],
+    "cancel": ["escape"],
+    "navUp": ["up", "k"],
+    "navDown": ["down", "j"],
+    "nextHunk": ["n"],
+    "prevHunk": ["p"],
+    "scrollUp": [],
+    "scrollDown": [],
+    "yoloToggle": ["ctrl+alt+y"]
+  },
 
   "shellTools": {
     "exec_command": { "commandArgument": "cmd", "workdirArgument": "workdir" }

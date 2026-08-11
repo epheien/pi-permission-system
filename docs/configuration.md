@@ -107,25 +107,71 @@ This clamp is deny-preserving and, like `yoloMode`, applied at composition; when
 | `toolTextSummaryMaxLength`  | `80`    | Max characters of inline pattern/path summaries (grep patterns, find globs, ls paths) in permission prompts. Omit to use the default.                                                              |
 | `piInfrastructureReadPaths` | `[]`    | Extra directories to auto-allow for reads, bypassing the `external_directory` gate. Supports `~`/`$HOME` expansion and wildcard patterns (`*`, `?`).                                               |
 | `authorizerChain`           | `[]`    | Ordered names of registered live-authority chain links to consult before the terminal authorizer (see [Authorizer chain](#authorizer-chain--case-by-case-decision-links)).                         |
-| `yoloModeShortcut`          | `ctrl+alt+y` | TUI shortcut that toggles YOLO mode, as a pi `KeyId` (e.g. `ctrl+shift+y`). Blank (`""`) disables the shortcut; a malformed value is ignored (nothing is registered). Absent uses the default.     |
+| `keybindings` | *(see below)* | Per-action keyboard shortcuts (style mirrors pi-show-diffs.json). Each action maps to an array of pi `KeyId` strings; `[]` disables that action; omitted actions keep the built-in defaults; a provided array **replaces** that action's keys. Malformed values are dropped fail-safe. Help text shows only the first key of each action. See the `keybindings` section below. |
 | `toolDiffPrompt`            | `true`  | When `true` (default), an `ask` for `write` or `edit` in a TUI session renders an interactive diff view of the proposed change instead of a plain text prompt. Set `false` to fall back to the plain text prompt. |
 | `toolDiffDefaultView`       | `unified` | Default view the interactive diff opens in: `unified` (default) or `split`. `Tab` toggles at runtime; narrow terminals always fall back to `unified`. |
 
 Both logs write to `~/.pi/agent/extensions/pi-permission-system/logs/`.
 No debug output is printed to the terminal.
 
+### 可配置快捷键 `keybindings`
+
+All shortcuts are configurable through the top-level `keybindings` object (the layout mirrors the `keybindings` block in pi-show-diffs.json). Each action maps to an **array of pi `KeyId` strings** (e.g. `["y", "a"]`, `["ctrl+shift+p"]`):
+
+- an **empty array `[]`** disables that action (no key binds to it);
+- an **omitted action** keeps its built-in default;
+- a **provided array replaces** that action's keys entirely (never additive);
+- a **malformed key string is dropped** fail-safe (never silently rebound to a different key) and logged to the debug log;
+- **letters are case-sensitive**: `y` and `Y` are two different keys, so an array like `["Y", "s"]` keeps an uppercase `Y` distinct from the default lowercase approve `y`; config values keep their exact case and the help/hints show exactly what you wrote (`G`, `Y`, …). *(Combination keys such as `ctrl+y` go through pi's `matchesKey`, where modifier-case is equivalent — `ctrl+Y` ≡ `ctrl+y`.)*
+- **help text / hints show only the first key** of each action (when an action has several).
+
+Defaults:
+
+| Action | Default keys | Notes |
+| --- | --- | --- |
+| `approve` | `["y"]` | Decision (overlay dialog + diff decision area) |
+| `approveSession` | `["s"]` | Decision |
+| `deny` | `["d"]` | Decision |
+| `denyWithReason` | `["r"]` | Decision |
+| `confirm` | `["enter"]` | Decision |
+| `cancel` | `["escape"]` | Decision |
+| `navUp` / `navDown` | `["up", "k"]` / `["down", "j"]` | Move the highlight (both surfaces) |
+| `scrollUp` / `scrollDown` | `[]` | Diff view — **disabled by default** (`↑/↓` moves the highlight) |
+| `pageUp` / `pageDown` | `["pageup"]` / `["pagedown"]` | Diff view |
+| `scrollTop` / `scrollBottom` | `["home"]` / `["end"]` | Diff view |
+| `nextHunk` / `prevHunk` | `["n"]` / `["p"]` | Diff view |
+| `toggleMode` | `["tab"]` | Diff view (split/unified) |
+| `toggleWrap` | `["w"]` | Diff view |
+| `toggleExpand` | `[]` | Diff view (currently unused, configurable) |
+| `contextMore` / `contextLess` | `["right", "]"]` / `["left", "["]` | Diff view |
+| `yoloToggle` | `["ctrl+alt+y"]` | YOLO; `[]` disables the toggle |
+
+Example:
+
+```jsonc
+"keybindings": {
+  "approve": ["y"],
+  "deny": ["d"],
+  "scrollUp": [],
+  "scrollDown": [],
+  "nextHunk": ["n"],
+  "yoloToggle": ["ctrl+alt+y"]
+}
+```
+
 ### Overlay permission dialog (TUI)
 
-In an interactive **TUI** session, an `ask` decision opens a bottom-anchored overlay keybind dialog (framed like the show-diff dialog) with one-key shortcuts:
+In an interactive **TUI** session, an `ask` decision opens a bottom-anchored overlay keybind dialog (framed like the show-diff dialog). The four options and their **default** keys (configurable via `keybindings`):
 
-| Key | Action                                                            |
+| Key (default) | Action                                                            |
 | --- | ----------------------------------------------------------------- |
 | `y` | Approve once                                                      |
 | `s` | Approve for this session                                          |
-| `n` | Deny                                                              |
+| `d` | Deny                                                              |
 | `r` | Deny with a reason (opens an inline editor; a reason is required) |
 
-Arrow keys / `j`/`k` move the highlight, `enter` confirms the highlighted option, and `esc` denies.
+`↑`/`↓` (or `j`/`k`) move the highlight, `enter` confirms the highlighted option, and `esc` denies.
+Rebinding a decision key via `keybindings` also updates the `(x)` marker and the `Press x again …` hint to the new first key.
 With `doublePressToConfirm` enabled (the default), a letter hotkey **arms** its action and shows a `Press y again to approve.` hint; press the same key again to commit.
 Set `doublePressToConfirm` to `false` to commit on the first press.
 
@@ -139,8 +185,9 @@ Non-TUI contexts (RPC / frontend-driven sessions) keep the single-select prompt 
 
 When `toolDiffPrompt` is enabled (default) and a `write` or `edit` tool call needs a decision in a **TUI** session, the permission dialog renders an interactive **diff view** of the proposed file change (side-by-side `split` or single-column `unified`) above the approval keys, so you can see exactly what will change before deciding.
 
-- Default view is `unified`; press `Tab` to toggle between `unified` and `split`. Narrow terminals always fall back to `unified`.
-- Diff navigation keys scroll and jump between hunks while the diff is focused; the approval keys (`y`/`s`/`n`/`r`, `Enter`/`Esc`, plus `doublePressToConfirm`) behave as above.
+- Default view is `unified`; press `Tab` (rebindable via `keybindings.toggleMode`) to toggle between `unified` and `split`. Narrow terminals always fall back to `unified`.
+- Diff navigation keys are configurable via `keybindings` (`nextHunk` `n` / `prevHunk` `p`, `pageUp` / `pageDown`, `scrollTop`/`scrollBottom`, `contextMore`/`contextLess`, `toggleWrap`). Line scrolling (`scrollUp`/`scrollDown`) is **disabled by default**, so `↑`/`↓` move the decision highlight in the decision area; hunk jumps and paging cover navigation.
+- The approval keys (`y`/`s`/`d`/`r`, `Enter`/`Esc`, plus `doublePressToConfirm`) behave as the overlay dialog above — the same `keybindings` drive both surfaces.
 - `toolDiffPrompt: false` disables the diff view and returns to the plain text prompt for all tools.
 - The diff is rendered in the TUI only and is never written to the review log.
 

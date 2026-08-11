@@ -82,6 +82,7 @@ export class LocalUserAuthorizer implements TerminalAuthorizer {
         ui: this.deps.ui,
         doublePressToConfirm:
           this.deps.getPromptPreferences().doublePressToConfirm,
+        keybindings: this.deps.getConfig().keybindings,
       },
       details.forwarding
         ? "Permission Required (Subagent)"
@@ -100,6 +101,7 @@ export class LocalUserAuthorizer implements TerminalAuthorizer {
     details: PromptPermissionDetails,
   ): Promise<PermissionPromptDecision> {
     const config = this.deps.getConfig();
+    const kb = config.keybindings;
     const defaultView = config.toolDiffDefaultView ?? "unified";
     const labels: DiffReviewLabels = {
       approve: "Yes",
@@ -112,6 +114,7 @@ export class LocalUserAuthorizer implements TerminalAuthorizer {
       doublePressToConfirm:
         this.deps.getPromptPreferences().doublePressToConfirm,
       sessionScope: buildRequestOptions(details)?.sessionScope,
+      keybindings: kb,
     });
     const input: DiffReviewInput = {
       toolName: details.toolName as "write" | "edit",
@@ -120,6 +123,21 @@ export class LocalUserAuthorizer implements TerminalAuthorizer {
       labels,
       defaultView,
       decisionLayer,
+      viewerKeybindings: {
+        scrollUp: kb.scrollUp,
+        scrollDown: kb.scrollDown,
+        pageUp: kb.pageUp,
+        pageDown: kb.pageDown,
+        scrollTop: kb.scrollTop,
+        scrollBottom: kb.scrollBottom,
+        nextHunk: kb.nextHunk,
+        prevHunk: kb.prevHunk,
+        toggleMode: kb.toggleMode,
+        toggleWrap: kb.toggleWrap,
+        toggleExpand: kb.toggleExpand,
+        contextMore: kb.contextMore,
+        contextLess: kb.contextLess,
+      },
     };
     const decision = await presentDiffReview(
       (build) =>

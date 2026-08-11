@@ -3,38 +3,40 @@ export type DiffDefaultView = "split" | "unified";
 export type DiffColorMode = "default" | "theme";
 export type PathStyle = "full" | "short";
 
+/**
+ * Diff-view keyboard bindings: every action maps to an array of pi KeyId
+ * strings. An empty array disables that action; omitted actions never occur
+ * here because the assembled config is always fully merged (see
+ * `extension-config`).
+ */
 export interface DiffKeybindings {
-  approve: string[] | false;
-  reject: string[] | false;
-  scrollUp: string[] | false;
-  scrollDown: string[] | false;
-  pageUp: string[] | false;
-  pageDown: string[] | false;
-  scrollTop: string[] | false;
-  scrollBottom: string[] | false;
-  nextHunk: string[] | false;
-  prevHunk: string[] | false;
-  toggleMode: string[] | false;
-  toggleWrap: string[] | false;
-  toggleExpand: string[] | false;
-  contextMore: string[] | false;
-  contextLess: string[] | false;
+  scrollUp: string[];
+  scrollDown: string[];
+  pageUp: string[];
+  pageDown: string[];
+  scrollTop: string[];
+  scrollBottom: string[];
+  nextHunk: string[];
+  prevHunk: string[];
+  toggleMode: string[];
+  toggleWrap: string[];
+  toggleExpand: string[];
+  contextMore: string[];
+  contextLess: string[];
 }
 
 export const DEFAULT_KEYBINDINGS: DiffKeybindings = {
-  approve: ["Enter", "a", "y"],
-  reject: ["Escape", "r"],
-  scrollUp: ["up"],
-  scrollDown: ["down"],
-  pageUp: ["pageUp"],
-  pageDown: ["pageDown"],
+  scrollUp: [],
+  scrollDown: [],
+  pageUp: ["pageup"],
+  pageDown: ["pagedown"],
   scrollTop: ["home"],
   scrollBottom: ["end"],
   nextHunk: ["n"],
   prevHunk: ["p"],
-  toggleMode: ["Tab"],
+  toggleMode: ["tab"],
   toggleWrap: ["w"],
-  toggleExpand: ["ctrl+f"],
+  toggleExpand: [],
   contextMore: ["right", "]"],
   contextLess: ["left", "["],
 };

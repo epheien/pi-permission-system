@@ -516,17 +516,6 @@ describe("mergeUnifiedConfigs", () => {
     expect(merged.doublePressToConfirm).toBe(false);
   });
 
-  it("carries yoloModeShortcut from the base and lets the override win", () => {
-    const fromGlobal = mergeUnifiedConfigs({ yoloModeShortcut: "ctrl+y" }, {});
-    expect(fromGlobal.yoloModeShortcut).toBe("ctrl+y");
-
-    const overridden = mergeUnifiedConfigs(
-      { yoloModeShortcut: "ctrl+alt+y" },
-      { yoloModeShortcut: "ctrl+shift+y" },
-    );
-    expect(overridden.yoloModeShortcut).toBe("ctrl+shift+y");
-  });
-
   it("returns base unchanged when override is empty", () => {
     const base = {
       debugLog: true,
@@ -693,6 +682,23 @@ describe("mergeUnifiedConfigs", () => {
   it("shellTools is absent when both base and override omit it", () => {
     const merged = mergeUnifiedConfigs({ debugLog: true }, { yoloMode: false });
     expect(merged).not.toHaveProperty("shellTools");
+  });
+
+  it("keybindings shallow-merges per action: override replaces one action without dropping others", () => {
+    const merged = mergeUnifiedConfigs(
+      { keybindings: { approve: ["y"], deny: ["d"], nextHunk: ["n"] } },
+      { keybindings: { deny: ["z"] } },
+    );
+    expect(merged.keybindings).toEqual({
+      approve: ["y"],
+      deny: ["z"],
+      nextHunk: ["n"],
+    });
+  });
+
+  it("keybindings is absent when both base and override omit it", () => {
+    const merged = mergeUnifiedConfigs({ debugLog: true }, { yoloMode: false });
+    expect(merged).not.toHaveProperty("keybindings");
   });
 });
 

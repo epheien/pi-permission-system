@@ -154,6 +154,81 @@ const shellToolsSchema = z
  * global-vs-project override semantics. `strictObject` makes unknown top-level
  * keys an error, so editors flag typos and the runtime loader rejects them.
  */
+const keybindingsSchema = z
+  .strictObject({
+    approve: z.array(z.string()).optional().meta({
+      description: "Approve once. Empty array disables the hotkey.",
+    }),
+    approveSession: z.array(z.string()).optional().meta({
+      description: "Approve for this session. Empty array disables.",
+    }),
+    deny: z.array(z.string()).optional().meta({
+      description: "Deny. Empty array disables.",
+    }),
+    denyWithReason: z.array(z.string()).optional().meta({
+      description: "Deny with a reason. Empty array disables.",
+    }),
+    confirm: z.array(z.string()).optional().meta({
+      description: "Confirm the highlighted option.",
+    }),
+    cancel: z.array(z.string()).optional().meta({
+      description: "Cancel / go back.",
+    }),
+    navUp: z.array(z.string()).optional().meta({
+      description: "Move the highlight up.",
+    }),
+    navDown: z.array(z.string()).optional().meta({
+      description: "Move the highlight down.",
+    }),
+    scrollUp: z.array(z.string()).optional().meta({
+      description: "Diff view: scroll up (disabled by default).",
+    }),
+    scrollDown: z.array(z.string()).optional().meta({
+      description: "Diff view: scroll down (disabled by default).",
+    }),
+    pageUp: z.array(z.string()).optional().meta({
+      description: "Diff view: page up.",
+    }),
+    pageDown: z.array(z.string()).optional().meta({
+      description: "Diff view: page down.",
+    }),
+    scrollTop: z.array(z.string()).optional().meta({
+      description: "Diff view: scroll to top.",
+    }),
+    scrollBottom: z.array(z.string()).optional().meta({
+      description: "Diff view: scroll to bottom.",
+    }),
+    nextHunk: z.array(z.string()).optional().meta({
+      description: "Diff view: go to the next hunk.",
+    }),
+    prevHunk: z.array(z.string()).optional().meta({
+      description: "Diff view: go to the previous hunk.",
+    }),
+    toggleMode: z.array(z.string()).optional().meta({
+      description: "Diff view: toggle split/unified.",
+    }),
+    toggleWrap: z.array(z.string()).optional().meta({
+      description: "Diff view: toggle line wrap.",
+    }),
+    toggleExpand: z.array(z.string()).optional().meta({
+      description: "Diff view: toggle expand (currently unused).",
+    }),
+    contextMore: z.array(z.string()).optional().meta({
+      description: "Diff view: more context lines.",
+    }),
+    contextLess: z.array(z.string()).optional().meta({
+      description: "Diff view: fewer context lines.",
+    }),
+    yoloToggle: z.array(z.string()).optional().meta({
+      description: "Toggle YOLO mode.",
+    }),
+  })
+  .meta({
+    id: "keybindings",
+    description:
+      "Configurable keyboard shortcuts. Each value is an array of pi KeyId strings; an empty array disables that action; omitted actions use the built-in defaults.",
+  });
+
 export const unifiedConfigSchema = z
   .strictObject({
     $schema: z.string().optional().meta({
@@ -177,7 +252,7 @@ export const unifiedConfigSchema = z
       description:
         "Process-lifetime YOLO state — in-memory only, never persisted to this file. Accepted for backward compatibility; the value here is ignored.",
       markdownDescription:
-        "Auto-approve `ask`-state checks, including subagent approval forwarding.\n\n⚠️ **Use with caution** — this disables all interactive confirmation prompts until you quit Pi.\n\nYOLO is an **in-memory, process-lifetime toggle**: once enabled it stays on across session switches, config reloads, and agent turns, and resets only when the **Pi process exits** (restarting naturally starts with it **off**). It is never persisted to config. Toggle it with the `yoloModeShortcut` hotkey (default `ctrl+alt+y`) or `/permission-system yolo`. A `yoloMode` value written in this file is accepted only for backward compatibility and **ignored** — it does not enable YOLO on startup.",
+        "Auto-approve `ask`-state checks, including subagent approval forwarding.\n\n⚠️ **Use with caution** — this disables all interactive confirmation prompts until you quit Pi.\n\nYOLO is an **in-memory, process-lifetime toggle**: once enabled it stays on across session switches, config reloads, and agent turns, and resets only when the **Pi process exits** (restarting naturally starts with it **off**). It is never persisted to config. Toggle it with the `keybindings.yoloToggle` hotkey (default `ctrl+alt+y`) or `/permission-system yolo`. A `yoloMode` value written in this file is accepted only for backward compatibility and **ignored** — it does not enable YOLO on startup.",
       default: false,
     }),
     doublePressToConfirm: z.boolean().optional().meta({
@@ -213,13 +288,6 @@ export const unifiedConfigSchema = z
         "Ordered names of registered **live-authority chain links** (e.g. a model judge) to consult before the terminal authorizer (the human, or the subagent-forwarding / headless-deny fallback).\n\nA link reviews an `ask` and returns `allow` / `deny` (with an optional teaching reason) / `defer` to the next link. Three invariants govern the chain:\n\n- **Config order wins.** The order here \u2014 not the order extensions register in \u2014 fixes the security-relevant chain order.\n- **Fail-safe skip.** A name with no registered link is skipped with a warning; the `ask` still reaches the terminal (more prompting, never less).\n- **Opt-in activation.** Installing a judge extension grants it no authority; a link decides nothing until you name it here.\n\nThe chain owner caps every verdict with a bounded-delegation checkpoint: a link's `allow` on an excluded surface (`external_directory` or `path`) is downgraded to `defer`, so a link cannot exceed your policy.\n\nDefaults to an empty list (no links).",
       default: [],
     }),
-    yoloModeShortcut: z.string().optional().meta({
-      description:
-        "TUI shortcut that toggles YOLO mode, as a pi KeyId (e.g. ctrl+alt+y). Blank disables the shortcut; absent uses the default ctrl+alt+y.",
-      markdownDescription:
-        "TUI keyboard shortcut that toggles YOLO mode, as a pi `KeyId` string (e.g. `ctrl+alt+y`, `ctrl+shift+y`).\n\n- **Absent** → the default `ctrl+alt+y` is used.\n- **Blank** → the shortcut is disabled (nothing is registered).\n- **Malformed** → ignored (nothing is registered; never a silently-different binding).\n\nOnly the interactive **TUI** dispatches extension shortcuts; headless runs use `/permission-system yolo` or the `getPermissionConfigService().toggleYoloMode()` API.",
-      default: "ctrl+alt+y",
-    }),
     toolDiffPrompt: z.boolean().optional().meta({
       description:
         "When true and the tool is write or edit, ask prompts render an interactive diff view. Defaults to true.",
@@ -243,6 +311,12 @@ export const unifiedConfigSchema = z
       default: {},
     }),
     shellTools: shellToolsSchema.optional(),
+    keybindings: keybindingsSchema.optional().meta({
+      description:
+        "Per-action keyboard shortcut arrays. Empty array disables an action; omitted actions use built-in defaults. Style mirrors pi-show-diffs.json `keybindings`.",
+      markdownDescription:
+        'Per-action keyboard shortcut arrays (style mirrors `keybindings` in pi-show-diffs.json).\n\nEach value is an array of pi `KeyId` strings (e.g. `["y", "a"]`); an **empty array disables** that action; omitted actions use the built-in defaults; writing an array **replaces** that action\'s keys (never additive).\n\nDecision keys (`approve` / `approveSession` / `deny` / `denyWithReason` / `confirm` / `cancel` / `navUp` / `navDown`) are shared by the overlay permission dialog and the interactive diff decision area. Diff-view navigation keys (`scrollUp`…`contextLess`) apply to the diff view only; `scrollUp`/`scrollDown`/`toggleExpand` are **disabled by default** (`↑/↓` moves the decision highlight instead). The `yoloToggle` action controls the YOLO-mode shortcut.\n\nMalformed key values are dropped fail-safe (never silently rebound); help text shows only the first key of each action.',
+    }),
   })
   .meta({
     title: "PI Permission System Configuration",

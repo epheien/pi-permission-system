@@ -1,9 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+  firstOptionKeys,
   initialPromptState,
   type PromptModelConfig,
   reducePrompt,
 } from "#src/authority/permission-prompt-decision";
+import {
+  keyLabel,
+  matchCancel,
+  matchConfirm,
+  matchDecisionHotkey,
+  matchNavDown,
+  matchNavUp,
+} from "#src/authority/prompt-key-matcher";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -13,6 +22,7 @@ function makeConfig(
   return {
     doublePressToConfirm: true,
     sessionLabel: "Yes, for this session",
+    optionKeys: { y: "y", s: "s", n: "n", r: "r" },
     ...overrides,
   };
 }
@@ -32,6 +42,21 @@ describe("reducePrompt", () => {
         reasonError: undefined,
         scopeServing: false,
       });
+    });
+  });
+
+  describe("arming hint uses the option's first key", () => {
+    it("shows the configured first key instead of the raw PromptKey letter", () => {
+      const config = makeConfig({
+        optionKeys: { y: "a", s: "s", n: "d", r: "r" },
+      });
+      const outcome = reducePrompt(config, initialPromptState(config), {
+        type: "hotkey",
+        key: "y",
+      });
+      expect(outcome.kind).toBe("render");
+      if (outcome.kind !== "render") throw new Error("expected render");
+      expect(outcome.state.hint).toBe("Press a again to approve.");
     });
   });
 
@@ -387,5 +412,95 @@ describe("reducePrompt", () => {
         decision: { approved: true, state: "approved_for_session" },
       });
     });
+  });
+});
+
+describe("firstOptionKeys", () => {
+  it("takes the first key of each decision action", () => {
+    expect(
+      firstOptionKeys({
+        approve: ["y", "a"],
+        approveSession: ["s"],
+        deny: ["d"],
+        denyWithReason: ["r"],
+      } as never),
+    ).toEqual({ y: "y", s: "s", n: "d", r: "r" });
+  });
+
+  it("falls back to the PromptKey letter when an action is disabled (empty array)", () => {
+    expect(
+      firstOptionKeys({
+        approve: [],
+        approveSession: [],
+        deny: [],
+        denyWithReason: [],
+      } as never),
+    ).toEqual({ y: "y", s: "s", n: "n", r: "r" });
+  });
+});
+
+describe("prompt-key-matcher", () => {
+  const KB = {
+    approve: ["y", "a"],
+    approveSession: ["s"],
+    deny: ["d"],
+    denyWithReason: ["r"],
+    confirm: ["enter"],
+    cancel: ["escape"],
+    navUp: ["up", "k"],
+    navDown: ["down", "j"],
+  };
+
+  it("matchDecisionHotkey 按 approve→approveSession→deny→denyWithReason 顺序", () => {
+    expect(matchDecisionHotkey(KB, "a")).toBe("y");
+    expect(matchDecisionHotkey(KB, "y")).toBe("y");
+    expect(matchDecisionHotkey(KB, "s")).toBe("s");
+    expect(matchDecisionHotkey(KB, "d")).toBe("n");
+    expect(matchDecisionHotkey(KB, "r")).toBe("r");
+    expect(matchDecisionHotkey(KB, "q")).toBeUndefined();
+  });
+
+  it("nav/confirm/cancel 命中与未命中", () => {
+    // pi handleInput 的原始数据:箭头是转义序列,字母/控制键是字面量。
+    expect(matchNavUp(KB, "k")).toBe(true);
+    expect(matchNavUp(KB, "\u001b[A")).toBe(true);
+    expect(matchNavDown(KB, "j")).toBe(true);
+    expect(matchNavDown(KB, "\u001b[B")).toBe(true);
+    expect(matchConfirm(KB, "\r")).toBe(true);
+    expect(matchCancel(KB, "\u001b")).toBe(true);
+    expect(matchNavUp(KB, "x")).toBe(false);
+    expect(matchConfirm(KB, "x")).toBe(false);
+  });
+
+  it("keyLabel 只做符号映射, 字母保留原文大小写", () => {
+    expect(keyLabel("G")).toBe("G");
+    expect(keyLabel("g")).toBe("g");
+    expect(keyLabel("ctrl+alt+y")).toBe("ctrl+alt+y");
+    expect(keyLabel("up")).toBe("↑");
+  });
+
+  it("单字母键严格区分大小写", () => {
+    const KB_G = { ...KB, approve: ["G"] };
+    expect(matchDecisionHotkey(KB_G, "G")).toBe("y");
+    expect(matchDecisionHotkey(KB_G, "g")).toBeUndefined(); // 严格:小写 g ≠ 大写 G
+    const KB_lower = { ...KB, deny: ["d"] };
+    expect(matchDecisionHotkey(KB_lower, "d")).toBe("n");
+    expect(matchDecisionHotkey(KB_lower, "D")).toBeUndefined(); // 严格:大写 D ≠ 小写 d
+  });
+
+  it("大写 Y 命中 approveSession, 小写 y 命中 approve(互不吞)", () => {
+    const KB_CASE = {
+      approve: ["y"],
+      approveSession: ["Y", "s"],
+      deny: ["d"],
+      denyWithReason: ["r"],
+      confirm: ["enter"],
+      cancel: ["escape"],
+      navUp: ["up", "k"],
+      navDown: ["down", "j"],
+    };
+    expect(matchDecisionHotkey(KB_CASE, "Y")).toBe("s");
+    expect(matchDecisionHotkey(KB_CASE, "y")).toBe("y");
+    expect(matchDecisionHotkey(KB_CASE, "S")).toBeUndefined(); // 严格:大写 S ≠ 小写 s
   });
 });
