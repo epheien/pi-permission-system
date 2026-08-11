@@ -4,12 +4,16 @@
 
 # @gotgenes/pi-permission-system
 
-[![npm version](https://img.shields.io/npm/v/@gotgenes/pi-permission-system?style=flat&logo=npm&logoColor=white)](https://www.npmjs.com/package/@gotgenes/pi-permission-system) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat)](https://opensource.org/licenses/MIT) [![TypeScript](https://img.shields.io/badge/TypeScript-6.x-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![pnpm](https://img.shields.io/badge/pnpm-%3E%3D11-F69220?style=flat&logo=pnpm&logoColor=white)](https://pnpm.io/) [![Pi Package](https://img.shields.io/badge/Pi-Package-6366F1?style=flat)](https://pi.mariozechner.at/)
+[![GitHub](https://img.shields.io/badge/repo-epheien%2Fpi-permission-system-6366F1?style=flat&logo=github&logoColor=white)](https://github.com/epheien/pi-permission-system) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat)](https://opensource.org/licenses/MIT) [![TypeScript](https://img.shields.io/badge/TypeScript-6.x-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![pnpm](https://img.shields.io/badge/pnpm-%3E%3D11-F69220?style=flat&logo=pnpm&logoColor=white)](https://pnpm.io/) [![Pi Package](https://img.shields.io/badge/Pi-Package-6366F1?style=flat)](https://pi.mariozechner.at/)
 
 Permission enforcement extension for the [Pi](https://pi.mariozechner.at/) coding agent that provides centralized, deterministic permission gates over tool, bash, MCP, skill, and special operations.
 
-> **Fork notice:** This package is a full fork of [MasuRii/pi-permission-system](https://github.com/MasuRii/pi-permission-system), published to npm as `@gotgenes/pi-permission-system`.
+> **Fork notice:** This package is a full fork of [MasuRii/pi-permission-system](https://github.com/MasuRii/pi-permission-system).
 > It has diverged substantially from upstream in config format, internal architecture, and permission model.
+>
+> **Repo history:** This package was extracted from the [gotgenes/pi-packages](https://github.com/gotgenes/pi-packages) pnpm workspace monorepo, where it lived at `packages/pi-permission-system/` and was published to npm (as `@gotgenes/pi-permission-system`) by the monorepo's release flow.
+> It is now a standalone repository with its own remote and lockfile, and it is **not published to npm** — install it from git only.
+> Historical `[#N]` / `Refs #N` / `(#N)` issue citations throughout the docs refer to **`gotgenes/pi-packages`** issues, not this repository's issue tracker.
 
 ## What It Does
 
@@ -34,8 +38,10 @@ Permission enforcement extension for the [Pi](https://pi.mariozechner.at/) codin
 
 ## Install
 
+This repository is installed from **git only** — it is not published to npm, so npm installs are not supported.
+
 ```bash
-pi install npm:@gotgenes/pi-permission-system
+pi install git:github.com/epheien/pi-permission-system
 ```
 
 ## Quick Start
