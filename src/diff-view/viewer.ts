@@ -137,7 +137,7 @@ function isLightTheme(theme: DiffTheme): boolean {
 
   try {
     const bg = theme.getBgAnsi("toolPendingBg");
-    const match = bg.match(/48;2;(\d+);(\d+);(\d+)/);
+    const match = /48;2;(\d+);(\d+);(\d+)/.exec(bg);
     if (match) {
       return (
         rgbLuminance({
@@ -179,7 +179,7 @@ function getDiffBackgrounds(
 }
 
 function parseTrueColorBackgroundAnsi(ansi: string): RgbColor | undefined {
-  const match = ansi.match(/\x1b\[48;2;(\d{1,3});(\d{1,3});(\d{1,3})m/);
+  const match = /\x1b\[48;2;(\d{1,3});(\d{1,3});(\d{1,3})m/.exec(ansi);
   if (!match) return undefined;
 
   const rgb = {
@@ -569,18 +569,18 @@ export class DiffViewer implements Component {
     const navigationDiff = this.getNavigationDiff();
     if (!navigationDiff || totalHunks === 0) return "Hunk: none";
     const hunk =
-      navigationDiff.hunks[clampNumber(currentHunkIndex, 0, totalHunks - 1)]!;
+      navigationDiff.hunks[clampNumber(currentHunkIndex, 0, totalHunks - 1)];
     const newRange =
       hunk.newStartLine === undefined
         ? undefined
         : hunk.newStartLine === hunk.newEndLine
-          ? `${hunk.newStartLine.toLocaleString()}`
+          ? hunk.newStartLine.toLocaleString()
           : `${hunk.newStartLine.toLocaleString()}-${(hunk.newEndLine ?? hunk.newStartLine).toLocaleString()}`;
     const oldRange =
       hunk.oldStartLine === undefined
         ? undefined
         : hunk.oldStartLine === hunk.oldEndLine
-          ? `${hunk.oldStartLine.toLocaleString()}`
+          ? hunk.oldStartLine.toLocaleString()
           : `${hunk.oldStartLine.toLocaleString()}-${(hunk.oldEndLine ?? hunk.oldStartLine).toLocaleString()}`;
     const anchor = newRange
       ? `new ${newRange}`
@@ -686,7 +686,7 @@ export class DiffViewer implements Component {
     // 帮助信息只显示每个 action 的第一个快捷键(有多个时)。
     const formatBinding = (binding: string[]): string | null => {
       if (binding.length === 0) return null;
-      return keyLabel(binding[0]!);
+      return keyLabel(binding[0]);
     };
     const fmt = (binding: string[], label: string): string | null => {
       const keys = formatBinding(binding);
@@ -837,7 +837,7 @@ export class DiffViewer implements Component {
       ? (this.constructor as typeof DiffViewer).TOKEN_TO_THEME[token]
       : undefined;
     const styled = themeToken
-      ? this.theme.fg(themeToken as any, text)
+      ? this.theme.fg(themeToken, text)
       : this.theme.fg(this.getForegroundForTone(tone), text);
 
     if (!highlighted) return styled;
@@ -919,31 +919,31 @@ export class DiffViewer implements Component {
     let output = "";
 
     for (let i = 0; i < orderedBoundaries.length - 1; i++) {
-      const start = orderedBoundaries[i]!;
-      const end = orderedBoundaries[i + 1]!;
+      const start = orderedBoundaries[i];
+      const end = orderedBoundaries[i + 1];
       if (end <= start) continue;
 
       while (
         syntaxIndex < syntaxRanges.length &&
-        start >= syntaxRanges[syntaxIndex]!.end
+        start >= syntaxRanges[syntaxIndex].end
       )
         syntaxIndex++;
       while (
         highlightIndex < safeRanges.length &&
-        start >= safeRanges[highlightIndex]!.end
+        start >= safeRanges[highlightIndex].end
       )
         highlightIndex++;
 
       const token =
         syntaxIndex < syntaxRanges.length &&
-        start >= syntaxRanges[syntaxIndex]!.start &&
-        start < syntaxRanges[syntaxIndex]!.end
-          ? syntaxRanges[syntaxIndex]!.token
+        start >= syntaxRanges[syntaxIndex].start &&
+        start < syntaxRanges[syntaxIndex].end
+          ? syntaxRanges[syntaxIndex].token
           : undefined;
       const highlighted =
         highlightIndex < safeRanges.length &&
-        start >= safeRanges[highlightIndex]!.start &&
-        start < safeRanges[highlightIndex]!.end;
+        start >= safeRanges[highlightIndex].start &&
+        start < safeRanges[highlightIndex].end;
 
       const segmentText = sliceChars(safeText, start, end);
       if (
@@ -1095,7 +1095,7 @@ export class DiffViewer implements Component {
         i === 0
           ? this.buildCellPrefix(sign, lineNumber, lineNumberWidth, tone)
           : this.buildCellContinuationPrefix(lineNumberWidth, tone);
-      const line = truncateToWidth(prefix + wrapped[i]!, cellWidth, "", true);
+      const line = truncateToWidth(prefix + wrapped[i], cellWidth, "", true);
       if (cursorLineIndex === undefined && line.includes(CURSOR_MARKER))
         cursorLineIndex = i;
       result.push(this.applyLineBackground(line, tone));
@@ -1133,12 +1133,12 @@ export class DiffViewer implements Component {
 
     for (let i = 0; i < total; i++) {
       const leftLine =
-        leftCell.lines[i] ??
-        this.renderEmptySplitCell(leftWidth, lineNumberWidth).lines[0] ??
+        leftCell.lines.at(i) ??
+        this.renderEmptySplitCell(leftWidth, lineNumberWidth).lines.at(0) ??
         "";
       const rightLine =
-        rightCell.lines[i] ??
-        this.renderEmptySplitCell(rightWidth, lineNumberWidth).lines[0] ??
+        rightCell.lines.at(i) ??
+        this.renderEmptySplitCell(rightWidth, lineNumberWidth).lines.at(0) ??
         "";
       const left = truncateToWidth(leftLine, leftWidth, "", true);
       const right = truncateToWidth(rightLine, rightWidth, "", true);
@@ -1187,7 +1187,7 @@ export class DiffViewer implements Component {
         i === 0
           ? this.buildCellPrefix(sign, lineNumber, lineNumberWidth, tone)
           : this.buildCellContinuationPrefix(lineNumberWidth, tone);
-      const line = truncateToWidth(prefix + wrapped[i]!, width, "", true);
+      const line = truncateToWidth(prefix + wrapped[i], width, "", true);
       if (cursorLineIndex === undefined && line.includes(CURSOR_MARKER))
         cursorLineIndex = i;
       lines.push(this.applyLineBackground(line, tone));
@@ -1308,11 +1308,13 @@ export class DiffViewer implements Component {
     const navigationDiff = this.getNavigationDiff() ?? this.diffModel;
     const navigationHunks = navigationDiff.hunks;
     const lines: string[] = [];
-    const hunkOffsets: number[] = new Array(navigationHunks.length).fill(0);
-    const rowSpans: Array<RenderedRowSpan | undefined> = new Array(
-      this.diffModel.rows.length,
-    );
-    const rowIndexByNewLine: number[] = new Array(
+    const hunkOffsets: number[] = new Array<number>(
+      navigationHunks.length,
+    ).fill(0);
+    const rowSpans: Array<RenderedRowSpan | undefined> = new Array<
+      RenderedRowSpan | undefined
+    >(this.diffModel.rows.length);
+    const rowIndexByNewLine: number[] = new Array<number>(
       this.diffModel.totalNewLines + 1,
     );
     let nextHunkIndex = 0;
@@ -1323,7 +1325,7 @@ export class DiffViewer implements Component {
       if (item.type === "row") {
         while (
           nextHunkIndex < navigationHunks.length &&
-          navigationHunks[nextHunkIndex]!.changeStartRow === item.fullRowIndex
+          navigationHunks[nextHunkIndex].changeStartRow === item.fullRowIndex
         ) {
           hunkOffsets[nextHunkIndex] = lines.length;
           nextHunkIndex++;
@@ -1463,7 +1465,7 @@ export class DiffViewer implements Component {
       0,
       content.hunkOffsets.length,
     );
-    const terminalRows = this.tui.terminal?.rows || 24;
+    const terminalRows = this.tui.terminal?.rows ?? 24;
     const chrome =
       provisionalHeaderLines.length +
       columnLines.length +
