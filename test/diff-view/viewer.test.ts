@@ -40,7 +40,7 @@ function makeViewer(
   maxHeight?: number,
 ) {
   return new DiffViewer(
-    tui as never,
+    tui,
     theme as never,
     makePreview(),
     "default",
@@ -88,7 +88,7 @@ describe("DiffViewer(裁剪)", () => {
       nextHunk: ["n", "j"],
     };
     const v = new DiffViewer(
-      tui as never,
+      tui,
       theme as never,
       makePreview(),
       "default",
@@ -114,7 +114,7 @@ describe("DiffViewer(裁剪)", () => {
       toggleMode: ["G"],
     };
     const v = new DiffViewer(
-      tui as never,
+      tui,
       theme as never,
       makePreview(),
       "default",
@@ -129,7 +129,7 @@ describe("DiffViewer(裁剪)", () => {
     expect(v.handleInput("G")).toBe(true); // 严格大写命中
     expect(v.viewMode()).toBe("split");
     const v2 = new DiffViewer(
-      tui as never,
+      tui,
       theme as never,
       makePreview(),
       "default",
@@ -150,7 +150,7 @@ describe("DiffViewer(裁剪)", () => {
       toggleWrap: ["y"],
     };
     const a = new DiffViewer(
-      tui as never,
+      tui,
       theme as never,
       makePreview(),
       "default",
@@ -164,7 +164,7 @@ describe("DiffViewer(裁剪)", () => {
     expect(a.handleInput("Y")).toBe(true); // toggleMode(大写 Y)
     expect(a.viewMode()).toBe("split");
     const b = new DiffViewer(
-      tui as never,
+      tui,
       theme as never,
       makePreview(),
       "default",

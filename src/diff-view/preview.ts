@@ -187,9 +187,11 @@ function getEditOperations(
       return { error: "The edit call provided an empty edits array." };
     }
     for (const [index, edit] of input.edits.entries()) {
+      // edits 元素类型为非空对象;若外部传入类型违约的 null/undefined 元素,此处属性访问
+      // 会抛 TypeError,由 computeEditPreview 外层 try/catch 兜底为通用错误消息。
       if (
-        typeof edit?.oldText !== "string" ||
-        typeof edit?.newText !== "string"
+        typeof edit.oldText !== "string" ||
+        typeof edit.newText !== "string"
       ) {
         return { error: `Edit ${index + 1} is missing oldText or newText.` };
       }
@@ -451,9 +453,13 @@ export async function computeChangePreview(
   input: unknown,
   cwd: string,
 ): Promise<ChangePreview | null> {
-  if (toolName === "edit")
+  // 保留运行时兜底:调用方可能传类型系统之外的值(如 "bash"),非 write/edit 返回 null。
+  const name: string = toolName;
+  if (name === "edit") {
     return computeEditPreview(input as EditToolInput, cwd);
-  if (toolName === "write")
+  }
+  if (name === "write") {
     return computeWritePreview(input as WriteToolInput, cwd);
+  }
   return null;
 }

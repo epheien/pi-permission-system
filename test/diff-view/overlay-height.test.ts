@@ -82,8 +82,8 @@ function makeFramedOverlay(
     viewerKeybindings: DEFAULT_KEYBINDINGS,
   };
   const inner = new DiffAskComponent(
-    tui as never,
-    theme as never,
+    tui,
+    theme,
     makePreview(diffLines),
     input,
     done,

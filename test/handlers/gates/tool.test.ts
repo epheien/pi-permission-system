@@ -317,7 +317,7 @@ describe("describeToolGate", () => {
         makeCheckResult("ask"),
         makeFormatter(),
       );
-      expect(desc.promptDetails?.toolInput).toEqual(input);
+      expect(desc.promptDetails.toolInput).toEqual(input);
     });
 
     it("carries the raw input for edit", () => {
@@ -327,7 +327,7 @@ describe("describeToolGate", () => {
         makeCheckResult("ask"),
         makeFormatter(),
       );
-      expect(desc.promptDetails?.toolInput).toEqual(input);
+      expect(desc.promptDetails.toolInput).toEqual(input);
     });
 
     it("omits toolInput for a non-write/edit tool", () => {
@@ -336,7 +336,7 @@ describe("describeToolGate", () => {
         makeCheckResult("ask"),
         makeFormatter(),
       );
-      expect(desc.promptDetails?.toolInput).toBeUndefined();
+      expect(desc.promptDetails.toolInput).toBeUndefined();
     });
   });
 });

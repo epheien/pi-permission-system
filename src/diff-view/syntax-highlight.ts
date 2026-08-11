@@ -168,7 +168,7 @@ function pushSegment(
   token?: SyntaxTokenKind,
 ): void {
   if (text.length === 0) return;
-  const last = segments[segments.length - 1];
+  const last = segments.at(-1);
   if (last && last.token === token) {
     last.text += text;
     return;

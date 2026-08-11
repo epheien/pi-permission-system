@@ -194,7 +194,7 @@ function coalesceRanges(ranges: InlineRange[]): InlineRange[] {
     };
     if (clamped.end <= clamped.start) continue;
 
-    const previous = merged[merged.length - 1];
+    const previous = merged.at(-1);
     if (!previous || clamped.start > previous.end) {
       merged.push(clamped);
       continue;
@@ -296,7 +296,7 @@ function buildAlignedRows(
 
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i];
-    const next = parts[i + 1];
+    const next = parts.at(i + 1);
 
     if (part.removed && next?.added) {
       const removedLines = splitDiffLines(part.value);
@@ -304,8 +304,8 @@ function buildAlignedRows(
       const count = Math.max(removedLines.length, addedLines.length);
 
       for (let j = 0; j < count; j++) {
-        const oldText = removedLines[j];
-        const newText = addedLines[j];
+        const oldText = removedLines.at(j);
+        const newText = addedLines.at(j);
         if (oldText !== undefined && newText !== undefined) {
           rows.push(
             createRow(
@@ -341,8 +341,8 @@ function buildAlignedRows(
       const count = Math.max(removedLines.length, addedLines.length);
 
       for (let j = 0; j < count; j++) {
-        const oldText = removedLines[j];
-        const newText = addedLines[j];
+        const oldText = removedLines.at(j);
+        const newText = addedLines.at(j);
         if (oldText !== undefined && newText !== undefined) {
           rows.push(
             createRow(
@@ -425,7 +425,7 @@ function getLineRange(
     const row = rows[i];
     const lineNumber = side === "old" ? row.oldLineNumber : row.newLineNumber;
     if (lineNumber === undefined) continue;
-    if (startLine === undefined) startLine = lineNumber;
+    startLine ??= lineNumber;
     endLine = lineNumber;
   }
 
@@ -499,7 +499,7 @@ function buildStructuredDiffFromRows(
   for (const block of changeBlocks) {
     const displayStartRow = Math.max(0, block.start - contextLines);
     const displayEndRow = Math.min(rows.length - 1, block.end + contextLines);
-    const previous = seeds[seeds.length - 1];
+    const previous = seeds.at(-1);
 
     if (previous && displayStartRow <= previous.displayEndRow + 1) {
       previous.displayEndRow = Math.max(previous.displayEndRow, displayEndRow);
@@ -604,7 +604,7 @@ function buildStructuredDiffFromRows(
     });
   }
 
-  const firstHunk = hunks[0];
+  const firstHunk = hunks.at(0);
   const firstChangedLine = firstHunk
     ? (firstHunk.newStartLine ?? firstHunk.oldStartLine)
     : undefined;
