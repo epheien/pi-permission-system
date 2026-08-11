@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import { describe, expect, it } from "vitest";
 import {
   resolveNodeText,
@@ -89,25 +90,70 @@ describe("resolveNodeText", () => {
       );
     });
 
-    it("returns text as-is for simple_expansion (e.g. $HOME)", () => {
-      // retro 0350: $HOME returns the literal text of a simple_expansion node
-      expect(resolveNodeText(makeTSNode("simple_expansion", "$HOME"))).toBe(
-        "$HOME",
-      );
+    it("resolves a plain $HOME reference to the home directory", () => {
+      // The children matter: the resolver discriminates a plain reference from
+      // an operator-bearing expansion structurally, not by text prefix (#694).
+      const node = makeTSNode("simple_expansion", "$HOME", [
+        makeTSNode("$", "$"),
+        makeTSNode("variable_name", "HOME"),
+      ]);
+      expect(resolveNodeText(node)).toBe(homedir());
     });
 
-    it("returns text as-is for expansion", () => {
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional literal — testing that expansion node text is returned verbatim
-      expect(resolveNodeText(makeTSNode("expansion", "${VAR}"))).toBe("${VAR}");
+    it("resolves a plain ${HOME} reference to the home directory", () => {
+      const node = makeTSNode("expansion", "${HOME}", [
+        makeTSNode("${", "${"),
+        makeTSNode("variable_name", "HOME"),
+        makeTSNode("}", "}"),
+      ]);
+      expect(resolveNodeText(node)).toBe(homedir());
+    });
+
+    it("returns text as-is for a variable outside the resolvable set", () => {
+      const node = makeTSNode("expansion", "${VAR}", [
+        makeTSNode("${", "${"),
+        makeTSNode("variable_name", "VAR"),
+        makeTSNode("}", "}"),
+      ]);
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional literal — a braced shell expansion, not a template string
+      expect(resolveNodeText(node)).toBe("${VAR}");
+    });
+
+    it("returns text as-is for an expansion carrying an operator", () => {
+      const node = makeTSNode("expansion", "${HOME:-/tmp}", [
+        makeTSNode("${", "${"),
+        makeTSNode("variable_name", "HOME"),
+        makeTSNode(":-", ":-"),
+        makeTSNode("word", "/tmp"),
+        makeTSNode("}", "}"),
+      ]);
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional literal — a braced shell expansion, not a template string
+      expect(resolveNodeText(node)).toBe("${HOME:-/tmp}");
     });
   });
 
   describe("concatenation nodes", () => {
     it("concatenates resolved children", () => {
       const word = makeTSNode("word", "/etc/");
-      const expansion = makeTSNode("simple_expansion", "$FILE");
+      const expansion = makeTSNode("simple_expansion", "$FILE", [
+        makeTSNode("$", "$"),
+        makeTSNode("variable_name", "FILE"),
+      ]);
       const node = makeTSNode("concatenation", "/etc/$FILE", [word, expansion]);
       expect(resolveNodeText(node)).toBe("/etc/$FILE");
+    });
+
+    it("concatenates a resolved $HOME reference with its suffix", () => {
+      const expansion = makeTSNode("simple_expansion", "$HOME", [
+        makeTSNode("$", "$"),
+        makeTSNode("variable_name", "HOME"),
+      ]);
+      const suffix = makeTSNode("word", "/sub");
+      const node = makeTSNode("concatenation", "$HOME/sub", [
+        expansion,
+        suffix,
+      ]);
+      expect(resolveNodeText(node)).toBe(`${homedir()}/sub`);
     });
 
     it("handles nested concatenation-of-string", () => {

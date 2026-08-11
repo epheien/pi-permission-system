@@ -1,3 +1,5 @@
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { AccessIntent } from "#src/access-intent/access-intent";
 import { BashProgram } from "#src/access-intent/bash/program";
@@ -94,6 +96,47 @@ describe("describeBashExternalDirectoryGate", () => {
       makeResolver(makeCheckResult("ask")),
     );
     expect(result).toBeNull();
+  });
+
+  describe("resolved shell expansions (#694)", () => {
+    it("prompts for a $HOME write target that does not exist yet", async () => {
+      const resolver = makeResolver(makeCheckResult("ask"));
+      const result = await describeGate(
+        makeTcc({
+          input: {
+            command: 'touch "$HOME/pi-permission-system-repro-new"',
+          },
+        }),
+        resolver,
+      );
+      expect(isGateDescriptor(result)).toBe(true);
+      expect((result as GateDescriptor).denialContext).toMatchObject({
+        kind: "bash_external_directory",
+        externalPaths: [
+          { path: join(homedir(), "pi-permission-system-repro-new") },
+        ],
+      });
+    });
+
+    it("prompts for a braced ${HOME} reference", async () => {
+      const result = await describeGate(
+        makeTcc({ input: { command: 'ls "${HOME}/somewhere"' } }),
+        makeResolver(makeCheckResult("ask")),
+      );
+      expect(isGateDescriptor(result)).toBe(true);
+      expect((result as GateDescriptor).denialContext).toMatchObject({
+        kind: "bash_external_directory",
+        externalPaths: [{ path: join(homedir(), "somewhere") }],
+      });
+    });
+
+    it("does not prompt for a variable it cannot resolve", async () => {
+      const result = await describeGate(
+        makeTcc({ input: { command: 'CURRENT="$HOME"; ls "$CURRENT"' } }),
+        makeResolver(makeCheckResult("ask")),
+      );
+      expect(result).toBeNull();
+    });
   });
 
   it("resolves each external path on the external_directory surface via an access-path intent (#418)", async () => {

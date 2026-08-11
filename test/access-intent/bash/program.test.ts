@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -228,6 +229,40 @@ describe("BashProgram", () => {
         ]);
       });
     });
+
+    describe("resolved shell expansions (#694)", () => {
+      it("resolves ${HOME}/… instead of fabricating a cwd-relative path", async () => {
+        const program = await BashProgram.parse(
+          'ls "${HOME}/somewhere"',
+          normalizer,
+        );
+        expect(program.pathRuleCandidates().map(({ token }) => token)).toEqual([
+          join(homedir(), "somewhere"),
+        ]);
+      });
+
+      it("keeps a $PWD token literal-only after a non-literal cd", async () => {
+        // `$PWD` becomes the base-relative `.`, so it inherits the #393
+        // unknown-base treatment rather than resolving against the wrong
+        // directory — and never fabricates `<cwd>/$PWD/x`.
+        const program = await BashProgram.parse(
+          'cd "$DIR" && ls "$PWD/x"',
+          normalizer,
+        );
+        const candidate = program
+          .pathRuleCandidates()
+          .find(({ token }) => token === "./x");
+        expect(candidate?.path.matchValues()).toEqual(["./x"]);
+        expect(candidate?.path.boundaryValue()).toBe("");
+      });
+
+      it("leaves a variable outside the resolvable set unresolved", async () => {
+        const program = await BashProgram.parse('ls "$CONFIG/x"', normalizer);
+        expect(program.pathRuleCandidates().map(({ token }) => token)).toEqual([
+          "$CONFIG/x",
+        ]);
+      });
+    });
   });
 
   describe("externalPaths", () => {
@@ -340,6 +375,15 @@ describe("BashProgram", () => {
         "C:\\Projects\\App",
       );
 
+      it("expands $HOME before any platform-specific token handling", async () => {
+        // Expansion happens at collection, upstream of the flavor, so the
+        // token the projection carries is the expanded path on every host.
+        const program = await BashProgram.parse('ls "$HOME/x"', winNormalizer);
+        expect(program.pathRuleCandidates().map(({ token }) => token)).toEqual([
+          `${homedir()}/x`,
+        ]);
+      });
+
       it("keeps a non-mount POSIX absolute literal (Git Bash semantics)", async () => {
         // On win32, Pi core runs Git Bash: /etc is an MSYS install-root path,
         // not C:\etc, so it is matched and displayed as typed (#533).
@@ -443,6 +487,114 @@ describe("BashProgram", () => {
       it("does not treat a backslash-relative token as a path rule candidate on posix", async () => {
         const program = await BashProgram.parse("cat dir\\file", normalizer);
         expect(program.pathRuleCandidates()).toHaveLength(0);
+      });
+    });
+
+    describe("resolved shell expansions (#694)", () => {
+      it("flags $HOME/… whose target does not exist", async () => {
+        // The token expands to an absolute path before classification, so the
+        // strict gate accepts it by shape — no longer dependent on the #645
+        // existence probe rescuing it.
+        const program = await BashProgram.parse(
+          'touch "$HOME/pi-permission-system-repro-new"',
+          normalizer,
+        );
+        expect(program.externalPaths().map((p) => p.value())).toEqual([
+          join(homedir(), "pi-permission-system-repro-new"),
+        ]);
+      });
+
+      it("flags a bare ${HOME}", async () => {
+        const program = await BashProgram.parse('ls "${HOME}"', normalizer);
+        expect(program.externalPaths().map((p) => p.value())).toEqual([
+          homedir(),
+        ]);
+      });
+
+      it("flags ${HOME}/…", async () => {
+        const program = await BashProgram.parse(
+          'ls "${HOME}/somewhere"',
+          normalizer,
+        );
+        expect(program.externalPaths().map((p) => p.value())).toEqual([
+          join(homedir(), "somewhere"),
+        ]);
+      });
+
+      it("flags a $HOME redirect destination", async () => {
+        const program = await BashProgram.parse(
+          "echo hi > $HOME/out.txt",
+          normalizer,
+        );
+        expect(program.externalPaths().map((p) => p.value())).toEqual([
+          join(homedir(), "out.txt"),
+        ]);
+      });
+
+      it("yields exactly one entry for an existing $HOME target", async () => {
+        // Previously the existence probe promoted this token; now the strict
+        // shape gate accepts it. It must not be collected through both.
+        const program = await BashProgram.parse('ls "$HOME"', normalizer);
+        expect(program.externalPaths().map((p) => p.value())).toEqual([
+          homedir(),
+        ]);
+      });
+
+      it("gives $HOME/… and its literal spelling the same projection", async () => {
+        const expanded = await BashProgram.parse(
+          `ls "${join(homedir(), "docs")}"`,
+          normalizer,
+        );
+        const spelled = await BashProgram.parse('ls "$HOME/docs"', normalizer);
+        expect(spelled.externalPaths().map((p) => p.value())).toEqual(
+          expanded.externalPaths().map((p) => p.value()),
+        );
+      });
+
+      it("resolves $HOME/… independently of an unknown effective base", async () => {
+        const program = await BashProgram.parse(
+          'cd "$DIR" && cat "$HOME/.ssh/id_rsa"',
+          normalizer,
+        );
+        expect(program.externalPaths().map((p) => p.value())).toEqual([
+          join(homedir(), ".ssh/id_rsa"),
+        ]);
+      });
+
+      it("resolves $PWD against the cd-folded base", async () => {
+        // `/etc` is flagged by the `cd` argument token itself, as it is for any
+        // absolute `cd` target; `$PWD/passwd` contributes the second entry.
+        const program = await BashProgram.parse(
+          'cd /etc && ls "$PWD/passwd"',
+          normalizer,
+        );
+        expect(program.externalPaths().map((p) => p.value())).toEqual([
+          "/etc",
+          "/etc/passwd",
+        ]);
+      });
+
+      it("does not flag a $PWD token that stays inside the working directory", async () => {
+        const program = await BashProgram.parse('ls "$PWD/src"', normalizer);
+        expect(program.externalPaths()).toHaveLength(0);
+      });
+
+      it("does not resolve an expansion carrying an operator", async () => {
+        const program = await BashProgram.parse(
+          'ls "${HOME:-/tmp}/x"',
+          normalizer,
+        );
+        expect(program.externalPaths()).toHaveLength(0);
+      });
+
+      it("does not resolve a variable through an assignment (accepted residual)", async () => {
+        // ADR 0009 keeps assignment-then-reference an accepted residual; this
+        // pins the declined behavior so a future change is a deliberate one.
+        const program = await BashProgram.parse(
+          'CURRENT="$HOME"; ls "$CURRENT"',
+          normalizer,
+        );
+        expect(program.externalPaths()).toHaveLength(0);
       });
     });
 

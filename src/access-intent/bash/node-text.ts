@@ -1,4 +1,5 @@
 import type { TSNode } from "#src/access-intent/bash/parser";
+import { resolvePlainVariableExpansion } from "#src/access-intent/bash/shell-variable-expansion";
 
 /**
  * Node types whose subtrees must never be descended into for
@@ -29,6 +30,8 @@ export const ARG_NODE_TYPES = new Set([
  * - `raw_string`    → strip surrounding single quotes
  * - `string`        → strip surrounding double quotes, concatenate children text
  * - `concatenation` → concatenate resolved children
+ * - expansions      → the resolved value of a plain `$HOME`/`$PWD` reference,
+ *   else `.text` (see `shell-variable-expansion.ts`)
  * - other           → `.text` as fallback
  */
 export function resolveNodeText(node: TSNode): string {
@@ -57,9 +60,10 @@ export function resolveNodeText(node: TSNode): string {
       return result;
     }
     case "string_content":
+      return node.text;
     case "simple_expansion":
     case "expansion":
-      return node.text;
+      return resolvePlainVariableExpansion(node) ?? node.text;
     case "concatenation": {
       let result = "";
       for (let i = 0; i < node.childCount; i++) {

@@ -371,7 +371,13 @@ describe("describeBashPathGate — home-relative paths", () => {
     expect(result.preCheck?.state).toBe("deny");
     expect(result.denialContext).toMatchObject({
       kind: "bash_path",
-      pathValue: "$HOME/.ssh/config",
+      // A plain `$HOME` reference is resolved at token collection (#694), so
+      // the displayed token is the path the shell will actually touch — and it
+      // now agrees with the session-approval pattern, which has always been
+      // derived from the expanded `AccessPath.value()`. A `~` token keeps its
+      // raw spelling: it is shape-classified directly and never needed
+      // collection-time expansion.
+      pathValue: "/mock/home/.ssh/config",
     });
   });
 });
