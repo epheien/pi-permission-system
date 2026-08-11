@@ -51,6 +51,21 @@
           }
         }
       }
+    },
+    {
+      "includes": [
+        "src/expand-home.ts",
+        "src/access-intent/bash/**",
+        "test/expand-home.test.ts",
+        "test/access-intent/bash/**"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noTemplateCurlyInString": "off"
+          }
+        }
+      }
     }
   ]
 }

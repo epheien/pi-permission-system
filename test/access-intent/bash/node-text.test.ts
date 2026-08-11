@@ -115,7 +115,6 @@ describe("resolveNodeText", () => {
         makeTSNode("variable_name", "VAR"),
         makeTSNode("}", "}"),
       ]);
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional literal — a braced shell expansion, not a template string
       expect(resolveNodeText(node)).toBe("${VAR}");
     });
 
@@ -127,7 +126,6 @@ describe("resolveNodeText", () => {
         makeTSNode("word", "/tmp"),
         makeTSNode("}", "}"),
       ]);
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional literal — a braced shell expansion, not a template string
       expect(resolveNodeText(node)).toBe("${HOME:-/tmp}");
     });
   });

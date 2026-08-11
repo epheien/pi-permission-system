@@ -71,41 +71,34 @@ describe("expandHomePath", () => {
 
   describe("${HOME} expansion", () => {
     test("bare ${HOME} expands to homedir()", () => {
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional literal — a braced shell expansion, not a template string
       expect(expandHomePath("${HOME}")).toBe(FAKE_HOME);
     });
 
     test("${HOME}/path expands to homedir()/path", () => {
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional literal — a braced shell expansion, not a template string
       expect(expandHomePath("${HOME}/dev/project")).toBe(
         join(FAKE_HOME, "dev/project"),
       );
     });
 
     test("${HOME}/path/* expands to homedir()/path/*", () => {
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional literal — a braced shell expansion, not a template string
       expect(expandHomePath("${HOME}/dev/*")).toBe(join(FAKE_HOME, "dev/*"));
     });
 
     test("${HOME}\\ (Windows separator) expands to homedir() + rest", () => {
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional literal — a braced shell expansion, not a template string
       expect(expandHomePath("${HOME}\\dev\\project")).toBe(
         join(FAKE_HOME, "dev\\project"),
       );
     });
 
     test("${HOMEDIR} is not expanded (no-op)", () => {
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional literal — a braced shell expansion, not a template string
       expect(expandHomePath("${HOMEDIR}")).toBe("${HOMEDIR}");
     });
 
     test("${HOME:-/tmp} (parameter expansion with an operator) is not expanded", () => {
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional literal — a braced shell expansion, not a template string
       expect(expandHomePath("${HOME:-/tmp}/x")).toBe("${HOME:-/tmp}/x");
     });
 
     test("${HOME (unterminated brace) is not expanded", () => {
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional literal — a braced shell expansion, not a template string
       expect(expandHomePath("${HOME/dev")).toBe("${HOME/dev");
     });
   });

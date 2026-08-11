@@ -118,8 +118,10 @@ describe("describeBashExternalDirectoryGate", () => {
       });
     });
 
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional literal — a braced shell expansion, not a template string
     it("prompts for a braced ${HOME} reference", async () => {
       const result = await describeGate(
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: intentional literal — a braced shell expansion, not a template string
         makeTcc({ input: { command: 'ls "${HOME}/somewhere"' } }),
         makeResolver(makeCheckResult("ask")),
       );
