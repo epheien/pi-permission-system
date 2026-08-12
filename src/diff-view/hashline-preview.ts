@@ -52,10 +52,17 @@ export function isHashlineEditInput(
 
 // ─── 锚点解析(宽松) ─────────────────────────────────────────────────────
 
+const NIBBLE_STR = "ZPMQVRWSNKTXJBYH";
+const HASH_LENGTH_MIN = 2;
+const HASH_LENGTH_MAX = 4;
+const HASH_ALPHABET_RE = new RegExp(`^[${NIBBLE_STR}]+$`);
+
 /**
  * 解析 LINE#HASH 锚点并返回行号。容忍前导 ">+-" 与空白,以及可选的
- * ":content" 后缀(与执行引擎的 parseAnchorRef 兼容);不校验 hash 部分
- * 的内容、长度与字符集——宽松点就在于此。
+ * ":content" 后缀(与执行引擎的 parseAnchorRef 兼容);校验 hash 的格式
+ * (长度 2-4、NIBBLE_STR 字符集,与 DISPLAY_HASH_QUANT 一致——执行端对
+ * 违者必报 E_BAD_REF),但不校验 hash 内容是否与文件行匹配(宽松点在于此:
+ * 内容匹配需要完整哈希引擎;文件已变时由执行端 fail-closed 兜底)。
  */
 export function parseAnchorLine(ref: unknown): number {
   if (typeof ref !== "string") {
@@ -76,6 +83,16 @@ export function parseAnchorLine(ref: unknown): number {
       `[E_BAD_REF] Line number must be >= 1, got ${line} in "${ref}".`,
     );
   }
+  const hash = match[2];
+  if (
+    hash.length < HASH_LENGTH_MIN ||
+    hash.length > HASH_LENGTH_MAX ||
+    !HASH_ALPHABET_RE.test(hash)
+  ) {
+    throw new Error(
+      `[E_BAD_REF] Invalid line reference "${ref}": hash must be ${HASH_LENGTH_MIN}-${HASH_LENGTH_MAX} characters from ${NIBBLE_STR} (e.g. "12#VR").`,
+    );
+  }
   return line;
 }
 
@@ -83,7 +100,6 @@ export function parseAnchorLine(ref: unknown): number {
 
 const KNOWN_OPS = new Set(["replace", "append", "prepend", "replace_text"]);
 
-const NIBBLE_STR = "ZPMQVRWSNKTXJBYH";
 const DISPLAY_HASH_QUANT = `[${NIBBLE_STR}]{2,4}`;
 const DISPLAY_PREFIX_RE = new RegExp(
   `^\\s*(?:\\d+\\s*#\\s*|#\\s*)${DISPLAY_HASH_QUANT}:`,
@@ -331,7 +347,7 @@ function resolveEditToSpan(
   index: number,
   content: string,
   lineIndex: LineIndex,
-): ResolvedSpan {
+): ResolvedSpan | null {
   const { fileLines, lineStarts, hasTerminalNewline } = lineIndex;
   const label = describeEdit(edit, index);
 
@@ -352,6 +368,15 @@ function resolveEditToSpan(
         );
       }
       const lines = edit.lines;
+
+      // noop 跳过:替换内容与原行逐字相同(与执行引擎 resolveEditToSpan 一致)。
+      const originalLines = fileLines.slice(startLine - 1, endLine);
+      if (
+        originalLines.length === lines.length &&
+        originalLines.every((line, lineIndex) => line === lines[lineIndex])
+      ) {
+        return null;
+      }
 
       if (lines.length > 0) {
         return {
@@ -487,6 +512,10 @@ function resolveEditToSpan(
       const oldText = extractText(edit, "oldText", index);
       const newText = extractText(edit, "newText", index);
       const match = findExactUniqueTextMatch(content, oldText);
+      if (oldText === newText) {
+        // noop 跳过:替换文本与原文相同(与执行引擎一致;匹配失败仍在上面报错)。
+        return null;
+      }
       return {
         kind: "replace",
         index,
@@ -634,8 +663,23 @@ export function applyHashlineEditPreview(
   const lineIndex = buildLineIndex(content);
 
   const spans: ResolvedSpan[] = [];
+  // noop 返回 null 跳过;相同 span 去重(与执行引擎 resolveEditSpans 的
+  // seenSpanKeys 一致)——重复/已应用的编辑不产生冲突假报。
+  const seenSpanKeys = new Set<string>();
   for (const [index, edit] of edits.entries()) {
-    spans.push(resolveEditToSpan(edit, index, content, lineIndex));
+    const span = resolveEditToSpan(edit, index, content, lineIndex);
+    if (span === null) {
+      continue;
+    }
+    const spanKey =
+      span.kind === "insert"
+        ? `insert:${span.boundary}:${span.replacement}`
+        : `replace:${span.start}:${span.end}:${span.replacement}`;
+    if (seenSpanKeys.has(spanKey)) {
+      continue;
+    }
+    seenSpanKeys.add(spanKey);
+    spans.push(span);
   }
 
   assertNoConflictingSpans(spans);

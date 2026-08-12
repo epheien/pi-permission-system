@@ -28,21 +28,28 @@ describe("parseAnchorLine(宽松)", () => {
     expect(parseAnchorLine("12#VR")).toBe(12);
   });
   it("容忍前导空白与 diff 标记", () => {
-    expect(parseAnchorLine("  5#AB")).toBe(5);
-    expect(parseAnchorLine(">3#AB")).toBe(3);
-    expect(parseAnchorLine("-7#AB")).toBe(7);
+    expect(parseAnchorLine("  5#XX")).toBe(5);
+    expect(parseAnchorLine(">3#XX")).toBe(3);
+    expect(parseAnchorLine("-7#XX")).toBe(7);
   });
   it("容忍 :content 后缀", () => {
     expect(parseAnchorLine("12#VR:function hello() {")).toBe(12);
   });
-  it("不校验 hash 内容/长度", () => {
-    expect(parseAnchorLine("1#ZZZZZZ")).toBe(1);
-    expect(parseAnchorLine("1#xy")).toBe(1);
+  it("校验 hash 格式:长度 2-4 且字符集 NIBBLE_STR", () => {
+    expect(parseAnchorLine("1#ZP")).toBe(1);
+    expect(parseAnchorLine("1#ZPM")).toBe(1);
+    expect(parseAnchorLine("1#ZPMQ")).toBe(1);
+  });
+  it("hash 长度或字符集非法 → E_BAD_REF(执行端必拒)", () => {
+    expect(() => parseAnchorLine("1#A")).toThrow("E_BAD_REF");
+    expect(() => parseAnchorLine("1#ZZZZZZ")).toThrow("E_BAD_REF");
+    expect(() => parseAnchorLine("1#xy")).toThrow("E_BAD_REF");
+    expect(() => parseAnchorLine("1#0A")).toThrow("E_BAD_REF");
   });
   it("缺 hash / 非数字 / 零行号 → E_BAD_REF", () => {
     expect(() => parseAnchorLine("12")).toThrow("E_BAD_REF");
     expect(() => parseAnchorLine("abc#DD")).toThrow("E_BAD_REF");
-    expect(() => parseAnchorLine("0#AB")).toThrow("E_BAD_REF");
+    expect(() => parseAnchorLine("0#XX")).toThrow("E_BAD_REF");
     expect(() => parseAnchorLine(42)).toThrow("E_BAD_REF");
   });
 });
@@ -52,7 +59,7 @@ describe("isHashlineEditInput(形状检测)", () => {
     expect(
       isHashlineEditInput({
         path: "/a.txt",
-        edits: [{ op: "replace", pos: "1#AB", lines: ["x"] }],
+        edits: [{ op: "replace", pos: "1#XX", lines: ["x"] }],
       }),
     ).toBe(true);
   });
@@ -72,7 +79,7 @@ describe("isHashlineEditInput(形状检测)", () => {
   it("空 edits / 缺 path / 非对象 → false", () => {
     expect(isHashlineEditInput({ path: "/a.txt", edits: [] })).toBe(false);
     expect(
-      isHashlineEditInput({ edits: [{ op: "replace", pos: "1#AB" }] }),
+      isHashlineEditInput({ edits: [{ op: "replace", pos: "1#XX" }] }),
     ).toBe(false);
     expect(isHashlineEditInput(null)).toBe(false);
     expect(isHashlineEditInput("edit")).toBe(false);
@@ -222,6 +229,55 @@ describe("applyHashlineEditPreview: 多编辑与冲突", () => {
       [
         { op: "append", pos: "1#XX", lines: ["x"] },
         { op: "append", pos: "1#YY", lines: ["y"] },
+      ],
+      "E_EDIT_CONFLICT",
+    );
+  });
+});
+
+describe("noop 与相同 span 去重(对齐执行引擎)", () => {
+  it("两个相同 replace 同一行 → 应用一次,不冲突", () => {
+    expect(
+      apply("a\nb\nc", [
+        { op: "replace", pos: "2#XX", lines: ["x"] },
+        { op: "replace", pos: "2#YY", lines: ["x"] },
+      ]),
+    ).toBe("a\nx\nc");
+  });
+  it("noop replace(内容相同) + 改动 replace 同行 → 应用改动", () => {
+    expect(
+      apply("a\nb\nc", [
+        { op: "replace", pos: "2#XX", lines: ["b"] },
+        { op: "replace", pos: "2#YY", lines: ["x"] },
+      ]),
+    ).toBe("a\nx\nc");
+  });
+  it("同一边界两个相同 append → 应用一次", () => {
+    expect(
+      apply("a\nb", [
+        { op: "append", pos: "1#XX", lines: ["x"] },
+        { op: "append", pos: "1#YY", lines: ["x"] },
+      ]),
+    ).toBe("a\nx\nb");
+  });
+  it("replace_text oldText === newText → noop", () => {
+    expect(
+      apply("a", [{ op: "replace_text", oldText: "a", newText: "a" }]),
+    ).toBe("a");
+  });
+  it("noop replace_text 仍要求 oldText 在文件中唯一", () => {
+    expectThrow(
+      "b",
+      [{ op: "replace_text", oldText: "a", newText: "a" }],
+      "E_NO_MATCH",
+    );
+  });
+  it("不同内容的 replace 同一行仍冲突", () => {
+    expectThrow(
+      "a\nb\nc",
+      [
+        { op: "replace", pos: "2#XX", lines: ["x"] },
+        { op: "replace", pos: "2#YY", lines: ["y"] },
       ],
       "E_EDIT_CONFLICT",
     );
