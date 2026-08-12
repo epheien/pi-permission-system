@@ -16,6 +16,10 @@ import {
   stripBom,
   summarizeDiff,
 } from "./diff-utils";
+import {
+  applyHashlineEditPreview,
+  isHashlineEditInput,
+} from "./hashline-preview";
 
 interface MultiEditOperation {
   oldText: string;
@@ -253,6 +257,36 @@ async function computeEditPreview(
     const rawContent = rawBuffer.toString("utf-8");
     const { text: content } = stripBom(rawContent);
     const normalizedContent = normalizeToLF(content);
+
+    // 分派基于拦截点的 canonical 输入形状(pi 框架先运行各工具的
+    // prepareArguments + schema 校验,再触发 tool_call 拦截):
+    // - 装 pi-hashline-edit 时:edits[].op/pos/end/lines(其 normalize 层已把
+    //   oldText/newText、file_path、snake_case、JSON-string edits 收敛为
+    //   canonical hashline 形状)→ 宽松行号预览,不校验 hash。
+    // - 原版 edit 时:edits[].oldText/newText(内置 prepareArguments 已归一化)
+    //   → 下方既有 fuzzy 精确匹配逻辑,行为不变。
+    if (isHashlineEditInput(input)) {
+      try {
+        const result = applyHashlineEditPreview(normalizedContent, input.edits);
+        return createChangePreviewFromTexts(
+          "edit",
+          input.path,
+          absolutePath,
+          result.beforeText,
+          result.afterText,
+          result.summaryLines,
+        );
+      } catch (error) {
+        return errorPreview(
+          "edit",
+          input.path,
+          absolutePath,
+          error instanceof Error ? error.message : String(error),
+          [`${input.edits.length} hashline operation(s)`],
+        );
+      }
+    }
+
     const operationInfo = getEditOperations(input);
     if ("error" in operationInfo) {
       return errorPreview(
