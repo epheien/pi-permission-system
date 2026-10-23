@@ -143,3 +143,52 @@ describe("createFailClosedToolCall", () => {
     );
   });
 });
+
+// ── yolo full-bypass ──────────────────────────────────────────────────────
+
+describe("createFailClosedToolCall under yolo", () => {
+  it("allows the call when the gate throws, keeping the gate_error trace", async () => {
+    const audit = makeAudit();
+    const reporter = makeReporter();
+    const gate = vi
+      .fn<(event: unknown, ctx: ExtensionContext) => Promise<GateOutcome>>()
+      .mockRejectedValue(new Error("gate exploded"));
+    const boundary = createFailClosedToolCall(
+      gate,
+      reporter,
+      audit,
+      makeTracer(),
+      () => true,
+    );
+
+    const result = await boundary(makeToolCallEvent("bash"), makeCtx());
+
+    expect(result).toEqual({});
+    expect(audit.recordError).toHaveBeenCalledTimes(1);
+    expect(reporter.writeReviewLog).toHaveBeenCalledWith(
+      "permission_request.blocked",
+      expect.objectContaining({
+        resolution: "gate_error",
+        yoloBypass: true,
+        error: "gate exploded",
+      }),
+    );
+  });
+
+  it("still blocks on a gate throw when yolo is off", async () => {
+    const gate = vi
+      .fn<(event: unknown, ctx: ExtensionContext) => Promise<GateOutcome>>()
+      .mockRejectedValue(new Error("gate exploded"));
+    const boundary = createFailClosedToolCall(
+      gate,
+      makeReporter(),
+      makeAudit(),
+      makeTracer(),
+      () => false,
+    );
+
+    const result = await boundary(makeToolCallEvent("bash"), makeCtx());
+
+    expect((result as { block?: true }).block).toBe(true);
+  });
+});

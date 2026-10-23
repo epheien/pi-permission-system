@@ -44,7 +44,7 @@ Instead the effective policy is floored so nothing resolves more permissively th
 So a global `bash: allow` cannot remain effective behind a project scope that was meant to deny bash but contains a typo — bash prompts until the invalid config is fixed.
 A validation warning plus a distinct fail-closed notice are emitted, and a fix + reload restores the intended policy.
 An invalid **global** scope does not trigger the clamp — it is the lowest precedence, so nothing more permissive is inherited when it fails.
-This clamp is deny-preserving and, like `yoloMode`, applied at composition; when `yoloMode` is on it re-permits the floored `ask` back to `allow`, since yolo is an explicit full-permissive opt-in.
+This clamp is deny-preserving and, like `yoloMode`, applied at composition; when `yoloMode` is on the clamp's `ask` is in turn bypassed, since yolo is an explicit "check nothing but an explicit deny" opt-in.
 
 ## Full Example
 
@@ -101,7 +101,7 @@ This clamp is deny-preserving and, like `yoloMode`, applied at composition; when
 | --------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `debugLog`                  | `false` | Enables verbose diagnostic logging to `logs/pi-permission-system-debug.jsonl`                                                                                                                      |
 | `permissionReviewLog`       | `true`  | Enables the permission request/denial review log at `logs/pi-permission-system-permission-review.jsonl`. Records bash command strings verbatim — see [Log file sensitivity](#log-file-sensitivity) |
-| `yoloMode`                  | `false` | Auto-approves `ask` results instead of prompting when yolo mode is enabled. **In-memory, process-lifetime toggle** — never persisted; stays on until you quit Pi, then resets. A value in the config file is ignored (backward-compat only). |
+| `yoloMode`                  | `false` | Bypasses **every** check except an explicit `deny`: `ask` results, unknown-tool validation, unparseable/wrapper bash floors, and fail-closed gate errors all resolve to `allow`. `deny` rules still block. **In-memory, process-lifetime toggle** — never persisted; stays on until you quit Pi, then resets. A value in the config file is ignored (backward-compat only). |
 | `doublePressToConfirm`      | `true`  | Requires a confirming second press of a decision hotkey in the overlay TUI dialog (see below). TUI sessions only; set to `false` for single-press.                                                  |
 | `toolInputPreviewMaxLength` | `200`   | Max characters of inline JSON shown in permission prompts for tool inputs. Omit to use the default. Set to a large value to disable truncation.                                                    |
 | `toolTextSummaryMaxLength`  | `80`    | Max characters of inline pattern/path summaries (grep patterns, find globs, ls paths) in permission prompts. Omit to use the default.                                                              |
@@ -818,7 +818,14 @@ A subagent's `ask` is **forwarded** to the parent for a human decision (a subage
 
 ### YOLO mode
 
-`subagentPermission` does **not** bypass YOLO mode: `yoloMode` is an ask→allow bypass that stays on for the lifetime of the Pi process, and with it enabled this process's non-denied `ask` never prompts in any agent (subagents included). YOLO resets only when the Pi process exits (it is never persisted), so simply don't enable yolo (hotkey or `/permission-system yolo`) for this process when you want subagents to actually prompt.
+`yoloMode` is a **full bypass with one exception**: while it is on, this extension blocks a call only when it matches an explicit `deny` rule.
+Every other outcome — an `ask` rule, the universal fallback, unknown-tool validation, the wrapper (`bash -c`, `sudo`, …) and unparseable-command floors, skill prompts, and a fail-closed gate error — resolves to `allow` without prompting.
+The bypass still leaves a trace: an `ask` that yolo auto-approves, a tool name Pi will reject, and an internal gate error all write `permission_request.auto_approved` / `permission_request.blocked` review-log entries, so the review log distinguishes a yolo grant from a policy allow.
+
+`subagentPermission` does **not** bypass YOLO mode: yolo is process-wide, and with it enabled this process's non-denied checks never prompt in any agent (subagents included).
+YOLO resets only when the Pi process exits (it is never persisted), so simply don't enable yolo (hotkey or `/permission-system yolo`) for this process when you want subagents to actually prompt.
+
+Because `deny` is the only surviving check, keep the rules you truly want enforced as explicit `deny` entries (for example `"path": { "~/.ssh/*": "deny" }`).
 
 ---
 

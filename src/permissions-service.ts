@@ -25,9 +25,16 @@ interface ResolverForService {
   getToolPermission(toolName: string, agentName?: string): PermissionState;
 }
 
-/** Narrow session view: hands out the cwd-bound path normalizer. */
-interface PathNormalizerProvider {
+/**
+ * Narrow session view: the cwd-bound path normalizer plus the live yolo flag.
+ *
+ * Advisory queries must answer at gate parity, and under yolo the gate
+ * bypasses the bash wrapper/unparseable floors — so the advisory resolver needs
+ * the same flag the gate reads.
+ */
+interface SessionView {
   getPathNormalizer(): PathNormalizer;
+  isYoloEnabled(): boolean;
 }
 
 /**
@@ -43,7 +50,7 @@ interface PathNormalizerProvider {
 export class LocalPermissionsService implements PermissionsService {
   constructor(
     private readonly resolver: ResolverForService,
-    private readonly session: PathNormalizerProvider,
+    private readonly session: SessionView,
     private readonly formatterRegistry: ToolInputFormatterRegistrar,
     private readonly accessExtractorRegistry: ToolAccessExtractorRegistrar,
     private readonly authorizerRegistry: AuthorizerRegistrar,
@@ -59,7 +66,9 @@ export class LocalPermissionsService implements PermissionsService {
     // the enforcement gate enforces (#309). A cold parser falls back to the
     // whole-string match inside resolveBashAdvisoryCheck.
     if (surface === "bash") {
-      return resolveBashAdvisoryCheck(value ?? "", agentName, this.resolver);
+      return resolveBashAdvisoryCheck(value ?? "", agentName, this.resolver, {
+        yolo: this.session.isYoloEnabled(),
+      });
     }
     const intent = buildAccessIntentForSurface(
       surface,

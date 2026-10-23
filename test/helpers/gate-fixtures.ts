@@ -253,6 +253,7 @@ export function makeGateInputs(
     getToolPreviewLimits?: () => ToolPreviewFormatterOptions;
     getPathNormalizer?: () => PathNormalizer;
     getShellToolAliases?: () => ShellToolsConfig | undefined;
+    isYoloEnabled?: () => boolean;
   } = {},
 ): ToolCallGateInputs {
   return {
@@ -280,6 +281,7 @@ export function makeGateInputs(
     getShellToolAliases:
       overrides.getShellToolAliases ??
       vi.fn<() => ShellToolsConfig | undefined>(() => undefined),
+    isYoloEnabled: overrides.isYoloEnabled ?? vi.fn<() => boolean>(() => false),
   };
 }
 

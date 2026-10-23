@@ -175,3 +175,57 @@ describe("resolveBashAdvisoryCheck", () => {
     });
   });
 });
+
+// ── yolo full-bypass ──────────────────────────────────────────────────────
+
+describe("resolveBashAdvisoryCheck under yolo", () => {
+  beforeEach(async () => {
+    resetWarmBashParser();
+    await warmBashParser();
+  });
+  afterEach(() => {
+    resetWarmBashParser();
+  });
+
+  it("does not report the wrapper ask floor the execution gate bypasses", () => {
+    const resolver = makeBashResolver(
+      {},
+      makeCheckResult({
+        state: "allow",
+        toolName: "bash",
+        source: "bash",
+        matchedPattern: "*",
+      }),
+    );
+
+    const result = resolveBashAdvisoryCheck(
+      "bash -c 'echo hi'",
+      undefined,
+      resolver,
+      { yolo: true },
+    );
+
+    expect(result.state).toBe("allow");
+    expect(result.origin).toBe("yolo");
+  });
+
+  it("reports the wrapper ask floor without yolo", () => {
+    const resolver = makeBashResolver(
+      {},
+      makeCheckResult({
+        state: "allow",
+        toolName: "bash",
+        source: "bash",
+        matchedPattern: "*",
+      }),
+    );
+
+    const result = resolveBashAdvisoryCheck(
+      "bash -c 'echo hi'",
+      undefined,
+      resolver,
+    );
+
+    expect(result.state).toBe("ask");
+  });
+});

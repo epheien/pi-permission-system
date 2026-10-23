@@ -1,5 +1,8 @@
 import { parseBashCommandsSync } from "#src/access-intent/bash/sync-commands";
-import { resolveBashCommandCheck } from "#src/handlers/gates/bash-command";
+import {
+  type ResolveBashCommandCheckOptions,
+  resolveBashCommandCheck,
+} from "#src/handlers/gates/bash-command";
 import type { ScopedPermissionResolver } from "#src/permission-resolver";
 import type { PermissionCheckResult } from "#src/types";
 
@@ -24,6 +27,7 @@ export function resolveBashAdvisoryCheck(
   command: string,
   agentName: string | undefined,
   resolver: ScopedPermissionResolver,
+  options: ResolveBashCommandCheckOptions = {},
 ): PermissionCheckResult {
   const commands = parseBashCommandsSync(command);
   if (commands === null) {
@@ -34,5 +38,11 @@ export function resolveBashAdvisoryCheck(
       agentName,
     });
   }
-  return resolveBashCommandCheck(command, commands, agentName, resolver);
+  return resolveBashCommandCheck(
+    command,
+    commands,
+    agentName,
+    resolver,
+    options,
+  );
 }

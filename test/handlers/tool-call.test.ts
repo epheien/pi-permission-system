@@ -397,3 +397,40 @@ describe("handleToolCall — generic ask prompt content", () => {
     );
   });
 });
+
+// ── yolo full-bypass ──────────────────────────────────────────────────────
+
+describe("handleToolCall under yolo", () => {
+  it("allows an unregistered tool and records the bypass", async () => {
+    const { handler, session, logger } = makeHandler({ tools: ["read"] });
+    vi.spyOn(session, "isYoloEnabled").mockReturnValue(true);
+    const review = vi.spyOn(logger, "review");
+
+    const result = await handler.handleToolCall(
+      makeToolCallEvent("ghost_tool"),
+      makeCtx(),
+    );
+
+    expect(result).toEqual({ action: "allow" });
+    expect(review).toHaveBeenCalledWith(
+      "permission_request.auto_approved",
+      expect.objectContaining({
+        toolName: "ghost_tool",
+        resolution: "auto_approved",
+        bypassedCheck: "unregistered-tool",
+      }),
+    );
+  });
+
+  it("still blocks an unregistered tool when yolo is off", async () => {
+    const { handler, session } = makeHandler({ tools: ["read"] });
+    vi.spyOn(session, "isYoloEnabled").mockReturnValue(false);
+
+    const result = await handler.handleToolCall(
+      makeToolCallEvent("ghost_tool"),
+      makeCtx(),
+    );
+
+    expect(result.action).toBe("block");
+  });
+});

@@ -7,6 +7,39 @@ import type { ScopedPermissionResolver } from "#src/permission-resolver";
 import type { PermissionCheckResult } from "#src/types";
 
 /**
+ * Options controlling how synthesized `ask` floors behave.
+ *
+ * Under yolo the extension is meant to bypass everything but an explicit
+ * `deny`, so the two floors this module synthesizes (the wrapper floor and the
+ * unparseable-command sentinel) must not fire. Both bypass paths tag an
+ * allowed result `origin: "yolo"` so the review log still records that yolo —
+ * not policy — let the command through.
+ */
+export interface ResolveBashCommandCheckOptions {
+  /** Bypass every non-`deny` floor (yolo mode). Defaults to false. */
+  yolo?: boolean;
+}
+
+/**
+ * The synthetic `matchedPattern` recorded when a wrapper unit's `allow` is
+ * floored to `ask`, keyed by the wrapper kind that caused the floor.
+ */
+const WRAPPER_SENTINEL: Record<WrapperKind, string> = {
+  "opaque-payload": "<opaque-bash-wrapper>",
+  indirection: "<indirection-bash-wrapper>",
+};
+
+/**
+ * Tag an allowed result as yolo-granted; a `deny` passes through untouched.
+ *
+ * Only the `allow` case is retagged: a `deny` must survive yolo, and an `ask`
+ * reaching this point is already the resolver's own decision (the manager
+ * rewrites `ask` to `allow` under yolo), so it is left as-is.
+ */
+function tagYolo(result: PermissionCheckResult): PermissionCheckResult {
+  return result.state === "allow" ? { ...result, origin: "yolo" } : result;
+}
+/**
  * Resolve the bash command-pattern decision for a (possibly chained) command.
  *
  * A bash invocation may be a shell program with several commands joined by
@@ -40,31 +73,34 @@ import type { PermissionCheckResult } from "#src/types";
  *
  * Pure and synchronous: the (async, tree-sitter) parse happens once in the
  * handler, which passes the decomposed `commands` here.
+ *
+ * Under yolo the two synthesized `ask` paths below (the wrapper floor and the
+ * unparseable-command sentinel) are bypassed; see
+ * {@link ResolveBashCommandCheckOptions}.
  */
-/**
- * The synthetic `matchedPattern` recorded when a wrapper unit's `allow` is
- * floored to `ask`, keyed by the wrapper kind that caused the floor.
- */
-const WRAPPER_SENTINEL: Record<WrapperKind, string> = {
-  "opaque-payload": "<opaque-bash-wrapper>",
-  indirection: "<indirection-bash-wrapper>",
-};
-
 export function resolveBashCommandCheck(
   command: string,
   commands: BashCommand[],
   agentName: string | undefined,
   resolver: ScopedPermissionResolver,
+  options: ResolveBashCommandCheckOptions = {},
 ): PermissionCheckResult {
+  const yolo = options.yolo === true;
+  const resolveWhole = () =>
+    resolver.resolve({
+      kind: "tool",
+      surface: "bash",
+      input: { command },
+      agentName,
+    });
+
   if (commands.length === 0) {
     if (isTriviallyEmptyCommand(command)) {
-      return resolver.resolve({
-        kind: "tool",
-        surface: "bash",
-        input: { command },
-        agentName,
-      });
+      return yolo ? tagYolo(resolveWhole()) : resolveWhole();
     }
+    // yolo: the whole-string match is the best available `deny` check when
+    // the command cannot be decomposed — never prompt.
+    if (yolo) return tagYolo(resolveWhole());
     return {
       state: "ask",
       toolName: "bash",
@@ -84,11 +120,13 @@ export function resolveBashCommandCheck(
     });
     const result =
       cmd.wrapperKind && base.state === "allow"
-        ? {
-            ...base,
-            state: "ask" as const,
-            matchedPattern: WRAPPER_SENTINEL[cmd.wrapperKind],
-          }
+        ? yolo
+          ? tagYolo(base)
+          : {
+              ...base,
+              state: "ask" as const,
+              matchedPattern: WRAPPER_SENTINEL[cmd.wrapperKind],
+            }
         : base;
     return cmd.context ? { ...result, commandContext: cmd.context } : result;
   });

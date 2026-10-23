@@ -8,6 +8,7 @@ import type { AuthorizerSelectionLifecycle } from "./authority/authorizer-select
 import type { ShellToolsConfig } from "./config-schema";
 import type { SessionConfigStore } from "./config-store";
 import type { PermissionSystemExtensionConfig } from "./extension-config";
+import { isYoloModeEnabled } from "./extension-config";
 import type { ExtensionPaths } from "./extension-paths";
 import type { ToolCallGateInputs } from "./handlers/gates/tool-call-gate-pipeline";
 import type { PathFlavor } from "./path/path-flavor";
@@ -230,6 +231,17 @@ export class PermissionSession implements ToolCallGateInputs {
    */
   getShellToolAliases(): ShellToolsConfig | undefined {
     return this.config.shellTools;
+  }
+
+  /**
+   * True when the process is in yolo mode.
+   *
+   * yolo bypasses every check but an explicit `deny`; the gates consult this
+   * per event (not once per session) so a mid-session toggle takes effect on
+   * the next call, matching the per-check read in `PermissionManager`.
+   */
+  isYoloEnabled(): boolean {
+    return isYoloModeEnabled(this.config);
   }
 
   // ── Path normalization ────────────────────────────────────────────────

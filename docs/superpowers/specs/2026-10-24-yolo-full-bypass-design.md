@@ -1,31 +1,31 @@
 # 设计:yolo 模式完全 bypass —— 仅保留显式 `deny`
 
-日期:2026-10-24
-状态:已获批(brainstorming 产物;用户要求跳过 writing-plans,直接 TDD 实现)
+日期:2026-10-24 状态:已获批(brainstorming 产物;用户要求跳过 writing-plans,直接 TDD 实现)
 
 ## 1. 问题
 
 `yoloMode` 当前的语义是**组合阶段的 `ask` → `allow` 改写**:显式 `deny` 规则原样存活,因此 yolo 抑制提示但保留硬拒绝。
 
-这个语义并不等于"完全 bypass"。扩展里还有四处**绕过规则集评估**的强制拦截,它们在 yolo 下照常生效,仍然能拦住用户:
+这个语义并不等于"完全 bypass"。
+扩展里还有四处 **绕过规则集评估**的强制拦截,它们在 yolo 下照常生效,仍然能拦住用户:
 
-| # | 泄漏点 | 位置 |
-|---|---|---|
-| 1 | bash wrapper(`bash -c` / `sudo` / `env` …)的 `allow` 被抬成合成 `ask` | `src/handlers/gates/bash-command.ts` |
-| 2 | bash 解析失败 / 空解析 → 合成 `<unparseable-bash-command>` 的 `ask` | `src/handlers/gates/bash-command.ts` |
-| 3 | 未知 / 缺失工具名的硬 `block` | `src/handlers/permission-gate-handler.ts` |
-| 4 | gate 内部抛错时的 fail-closed 硬 `block` | `src/handlers/tool-call-boundary.ts` |
+| #   | 泄漏点                                                                | 位置                                      |
+| --- | --------------------------------------------------------------------- | ----------------------------------------- |
+| 1   | bash wrapper(`bash -c` / `sudo` / `env` …)的 `allow` 被抬成合成 `ask` | `src/handlers/gates/bash-command.ts`      |
+| 2   | bash 解析失败 / 空解析 → 合成 `<unparseable-bash-command>` 的 `ask`   | `src/handlers/gates/bash-command.ts`      |
+| 3   | 未知 / 缺失工具名的硬 `block`                                         | `src/handlers/permission-gate-handler.ts` |
+| 4   | gate 内部抛错时的 fail-closed 硬 `block`                              | `src/handlers/tool-call-boundary.ts`      |
 
 其余全部入口(`path`、`external_directory`、bash 的 path/external-directory 门、`skill` read/input 门、session 规则、转发请求、invalid-config 的 `allow→ask` clamp)都经过 `resolver.resolve` → `PermissionManager.check`,已被现有改写覆盖。
 
 ## 2. 用户确认的需求模型
 
-| 维度 | 结论 |
-|---|---|
-| `deny` | **保留**(选 C):只有显式 `deny` 规则能拦住 yolo 会话 |
-| 非 deny 的拦截/提示 | **全部消失**(选 A):上表 4 项 + 所有 `ask` + 无效配置 clamp + skill `ask` |
-| 审计日志 | **保留** |
-| 配置面 | 不新增字段、不开兼容开关;`yoloMode` 语义直接升级(YAGNI) |
+| 维度                       | 结论                                                                     |
+| -------------------------- | ------------------------------------------------------------------------ |
+| `deny`                     | **保留**(选 C):只有显式 `deny` 规则能拦住 yolo 会话                      |
+| 非 deny 的拦截/提示        | **全部消失**(选 A):上表 4 项 + 所有 `ask` + 无效配置 clamp + skill `ask` |
+| 审计日志                   | **保留**                                                                 |
+| 配置面                     | 不新增字段、不开兼容开关;`yoloMode` 语义直接升级(YAGNI)                  |
 | 生命周期 / 快捷键 / 状态栏 | 不变:进程内、不持久化、`ctrl+alt+y`、`/permission-system yolo`、红字状态 |
 
 ## 3. 语义不变式
@@ -48,6 +48,13 @@
 4. `src/handlers/tool-call-boundary.ts` — `createFailClosedToolCall` 注入 `isYoloEnabled`;`catch` 分支在 yolo 下放行,但仍写 `permission_request.blocked`(`resolution: "gate_error"`,`yoloBypass: true`)
 5. `src/index.ts` — 组合根把 `() => isYoloModeEnabled(configStore.current())` 注入第 3、4 项
 
+### 4.1b 查询面一致性(实现中发现)
+
+`PermissionsService.checkPermission("bash", …)` 走 advisory 分解门,那里有同样的 wrapper `ask` floor。
+`LocalPermissionsService` 原本只拿到 `getPathNormalizer()`,因此在 yolo 下会向其他扩展报告 `ask`,而执行面实际放行。
+
+处置:`SessionView` 增加 `isYoloEnabled()`;`resolveBashAdvisoryCheck` 接受同一选项并透传,使查询面与执行面在 yolo 下给出同一答案。
+
 `src/rule.ts` 的 `rewriteAsksToYolo` **行为不变**;仅更新注释,把它定位为"规则集那一层的实现",与上述 4 个绕过点互补。
 
 ### 4.2 无需改动
@@ -58,12 +65,12 @@
 
 ## 5. 审计
 
-| 场景 | 事件 | resolution |
-|---|---|---|
-| yolo 放过 `ask` / wrapper / unparseable | `permission_request.auto_approved` | `auto_approved` |
-| yolo 放过未知工具 | 同上,附 `bypassedCheck: "unregistered-tool"` | `auto_approved` |
-| yolo 下 gate 抛错 | `permission_request.blocked` | `gate_error` + `yoloBypass: true` |
-| 命中显式 `deny` | `permission_request.blocked` | `policy_denied`(不变) |
+| 场景                                    | 事件                                         | resolution                        |
+| --------------------------------------- | -------------------------------------------- | --------------------------------- |
+| yolo 放过 `ask` / wrapper / unparseable | `permission_request.auto_approved`           | `auto_approved`                   |
+| yolo 放过未知工具                       | 同上,附 `bypassedCheck: "unregistered-tool"` | `auto_approved`                   |
+| yolo 下 gate 抛错                       | `permission_request.blocked`                 | `gate_error` + `yoloBypass: true` |
+| 命中显式 `deny`                         | `permission_request.blocked`                 | `policy_denied`(不变)             |
 
 ## 6. 测试
 

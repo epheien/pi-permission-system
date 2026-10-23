@@ -52,6 +52,15 @@ export interface ToolCallGateInputs {
    * tool is gated through the bash stack at parity with native `bash` (#574).
    */
   getShellToolAliases(): ShellToolsConfig | undefined;
+  /**
+   * True when the process is in yolo mode.
+   *
+   * yolo bypasses every check but an explicit `deny`, so the bash gate stops
+   * synthesizing its wrapper and unparseable-command `ask` floors (#see
+   * `resolveBashCommandCheck`). Read per event so a mid-session toggle takes
+   * effect on the next call.
+   */
+  isYoloEnabled(): boolean;
 }
 
 /**
@@ -174,6 +183,7 @@ export class ToolCallGatePipeline {
             bashProgram.commands(),
             tcc.agentName ?? undefined,
             this.resolver,
+            { yolo: this.inputs.isYoloEnabled() },
           ),
         };
       }

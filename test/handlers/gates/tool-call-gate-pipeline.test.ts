@@ -486,3 +486,51 @@ describe("ToolCallGatePipeline", () => {
     });
   });
 });
+
+// ── yolo full-bypass ───────────────────────────────────────────────────────
+
+describe("ToolCallGatePipeline under yolo", () => {
+  function mockWrapperProgram() {
+    return {
+      ...makeMockBashProgram("bash -c 'echo hi'"),
+      commands: vi.fn(() => [
+        { text: "bash -c 'echo hi'", wrapperKind: "opaque-payload" },
+      ]),
+    };
+  }
+
+  it("does not escalate an allowed wrapper command", async () => {
+    mockBashProgramParse.mockResolvedValue(mockWrapperProgram());
+    const resolver = makeResolver(
+      makeCheckResult({ state: "allow", source: "bash", matchedPattern: "*" }),
+    );
+    const inputs = makeGateInputs({ isYoloEnabled: () => true });
+    const { runner, deps } = makeGateRunner();
+    const pipeline = new ToolCallGatePipeline(resolver, inputs);
+
+    const result = await pipeline.evaluate(
+      makeTcc({ toolName: "bash", input: { command: "bash -c 'echo hi'" } }),
+      runner,
+    );
+
+    expect(result).toEqual({ action: "allow" });
+    expect(deps.escalate).not.toHaveBeenCalled();
+  });
+
+  it("escalates the same wrapper command when yolo is off", async () => {
+    mockBashProgramParse.mockResolvedValue(mockWrapperProgram());
+    const resolver = makeResolver(
+      makeCheckResult({ state: "allow", source: "bash", matchedPattern: "*" }),
+    );
+    const inputs = makeGateInputs({ isYoloEnabled: () => false });
+    const { runner, deps } = makeGateRunner();
+    const pipeline = new ToolCallGatePipeline(resolver, inputs);
+
+    await pipeline.evaluate(
+      makeTcc({ toolName: "bash", input: { command: "bash -c 'echo hi'" } }),
+      runner,
+    );
+
+    expect(deps.escalate).toHaveBeenCalled();
+  });
+});

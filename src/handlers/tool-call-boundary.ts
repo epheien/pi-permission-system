@@ -39,6 +39,13 @@ export function createFailClosedToolCall(
   reporter: DecisionReporter,
   audit: DecisionRecorder,
   tracer: DecisionTracer,
+  /**
+   * yolo-mode reader. When it reports true the extension bypasses every check
+   * but an explicit `deny`, so an internal gate failure stops blocking too:
+   * the call is allowed and the `gate_error` entry is kept as the trace.
+   * Defaults to yolo disabled (always fail closed).
+   */
+  isYoloEnabled: () => boolean = () => false,
 ): (event: unknown, ctx: ExtensionContext) => Promise<ToolCallResult> {
   return async (event, ctx) => {
     try {
@@ -54,18 +61,34 @@ export function createFailClosedToolCall(
         : {};
     } catch (error) {
       audit.recordError();
+      const yolo = readYolo(isYoloEnabled);
       reporter.writeReviewLog("permission_request.blocked", {
         toolName: bestEffortToolName(event),
         command: bestEffortCommand(event),
         resolution: "gate_error",
         error: errorMessage(error),
+        ...(yolo ? { yoloBypass: true } : {}),
       });
-      return { block: true, reason: formatGateErrorReason(error) };
+      // Fail closed by default; under yolo an internal failure must not block
+      // the call, but the gate_error log above still records that it happened.
+      return yolo ? {} : { block: true, reason: formatGateErrorReason(error) };
     }
   };
 }
 
 // ── Defensive event readers (never throw) ──────────────────────────────────
+
+/**
+ * Read the yolo flag without letting a misbehaving reader mask a real gate
+ * failure: an unreadable flag falls back to "yolo off", preserving fail-closed.
+ */
+function readYolo(isYoloEnabled: () => boolean): boolean {
+  try {
+    return isYoloEnabled();
+  } catch {
+    return false;
+  }
+}
 
 /** Best-effort tool name from a raw event; never throws. */
 function bestEffortToolName(event: unknown): string {

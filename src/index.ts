@@ -304,6 +304,7 @@ export default function piPermissionSystemExtension(pi: ExtensionAPI): void {
       reporter,
       audit,
       logger,
+      () => isYoloModeEnabled(configStore.current()),
     ),
   );
 }

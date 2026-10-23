@@ -539,7 +539,7 @@ Requester identity (`requesterCwd`, `principal`) crosses to neither: it is the s
 
 ### yolo is recorded authority
 
-yolo is not a channel and not a live concern — it is a standing authorization, and it belongs in the ruleset, not in the prompt path.
+yolo is not a channel and not a live concern — it is a standing authorization, and the ruleset is where most of it lives.
 It is a composition-stage rewrite: when enabled, every `ask` action in the composed ruleset is rewritten to `allow`, tagged `origin: "yolo"` so the review log still distinguishes a yolo grant from a policy allow.
 
 ```typescript
@@ -548,8 +548,13 @@ const effective = yolo
   : composed;
 ```
 
-This is faithful to current behavior exactly: explicit `deny` rules are not `ask`, so they pass through untouched — yolo suppresses prompts but **preserves hard denies**.
-It honors principle 5 (defaults are rules; no side-channel fallbacks): `evaluate()` runs pure over the rewritten ruleset, and the decision path loses all yolo knowledge (`shouldAutoApprovePermissionState` and `canResolveAskPermissionRequest`'s yolo arm dissolve).
+Explicit `deny` rules are not `ask`, so they pass through untouched.
+That makes the invariant: **yolo blocks a call only on an explicit `deny`.**
+The ruleset rewrite covers the policy layer, but four entry points synthesize a decision outside `evaluate()` and would otherwise still stop a yolo session: the bash wrapper floor (`bash -c`, `sudo`, `env`, …), the unparseable-command sentinel, unknown/missing tool-name validation, and the fail-closed boundary's `catch`.
+Each consults the same per-event yolo reader and yields `allow` under yolo, tagging an allowed result `origin: "yolo"` where a policy rule did not already decide it — so `GateRunner`'s yolo fast path writes `permission_request.auto_approved` for all of them.
+The fail-closed boundary keeps its `permission_request.blocked` / `resolution: "gate_error"` entry (plus `yoloBypass: true`) even when it lets the call through: the bypass is auditable, not silent.
+
+It honors principle 5 (defaults are rules; no side-channel fallbacks): `evaluate()` runs pure over the rewritten ruleset, and the decision path loses all yolo knowledge.
 A future "disable everything" mode — overriding denies too — would be a *different*, deliberately named operation: appending a final `{ surface: "*", pattern: "*", action: "allow" }` rule (last-match-wins).
 It is not built, and it would be requested by name, never conflated with yolo.
 

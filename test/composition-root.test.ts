@@ -36,10 +36,14 @@ import {
 import { SUBAGENT_CHILD_SESSION_CREATED } from "#src/authority/subagent-lifecycle-events";
 import { getSubagentSessionRegistry } from "#src/authority/subagent-registry";
 import { getGlobalConfigPath } from "#src/config-paths";
+import { resetProcessYoloState } from "#src/config-store";
 import { DEFAULT_EXTENSION_CONFIG } from "#src/extension-config";
 import piPermissionSystemExtension from "#src/index";
 import { PERMISSIONS_READY_CHANNEL } from "#src/permission-events";
-import { getPermissionsService } from "#src/service";
+import {
+  getPermissionConfigService,
+  getPermissionsService,
+} from "#src/service";
 import { makeFakePi } from "#test/helpers/make-fake-pi";
 
 const SERVICE_KEY = Symbol.for("@gotgenes/pi-permission-system:service");
@@ -1104,5 +1108,65 @@ describe("forwarded grant-scope selection round-trip", () => {
     await parentPi.fire("session_shutdown");
     rmSync(parentCwd, { recursive: true, force: true });
     rmSync(childCwd, { recursive: true, force: true });
+  });
+});
+
+describe("yolo full-bypass at the composition root", () => {
+  // yolo means "the extension checks nothing but an explicit deny". Wired end
+  // to end this must hold across the real config store, session, manager and
+  // gate pipeline — a unit test on any one of them cannot see the seam.
+  afterEach(() => {
+    resetProcessYoloState();
+  });
+
+  it("bypasses ask gates and unknown tools but still blocks an explicit deny", async () => {
+    writeGlobalConfig({
+      permission: { "*": "allow", bash: "ask", write: "deny" },
+    });
+
+    const cwd = mkdtempSync(join(tmpdir(), "pi-perm-yolo-cwd-"));
+    const pi = makeFakePi({ toolNames: ["bash", "write"] });
+    piPermissionSystemExtension(pi as unknown as ExtensionAPI);
+
+    const select = vi.fn(async () => undefined);
+    const ctx = makeBaseCtx(cwd, "yolo-session", { select });
+    await fireSessionStart(pi, ctx);
+
+    getPermissionConfigService()!.toggleYoloMode();
+
+    const askResult = await pi.fire(
+      "tool_call",
+      {
+        toolName: "bash",
+        toolCallId: "yolo-ask",
+        // A wrapper command: `resolveBashCommandCheck` floors its allow to a
+        // synthetic ask, so this exercises the gate-level bypass too — not just
+        // the ruleset rewrite.
+        input: { command: "bash -c 'echo hi'" },
+      },
+      ctx,
+    );
+    expect(askResult).toEqual({});
+    expect(select).not.toHaveBeenCalled();
+
+    const denyResult = await pi.fire(
+      "tool_call",
+      {
+        toolName: "write",
+        toolCallId: "yolo-deny",
+        input: { path: join(cwd, "out.txt"), content: "x" },
+      },
+      ctx,
+    );
+    expect(denyResult).toMatchObject({ block: true });
+
+    const unknownResult = await pi.fire(
+      "tool_call",
+      { toolName: "ghost_tool", toolCallId: "yolo-unknown", input: {} },
+      ctx,
+    );
+    expect(unknownResult).toEqual({});
+
+    rmSync(cwd, { recursive: true, force: true });
   });
 });

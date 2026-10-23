@@ -172,6 +172,7 @@ describe("service round-trip through the global slot", () => {
         {
           getPathNormalizer: () =>
             new PathNormalizer(posixPathFlavor, "/test/project"),
+          isYoloEnabled: () => false,
         },
         new ToolInputFormatterRegistry(),
         new ToolAccessExtractorRegistry(),

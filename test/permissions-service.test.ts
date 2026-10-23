@@ -82,10 +82,14 @@ function makeService(overrides?: {
   formatterRegistry?: ToolInputFormatterRegistrar;
   accessExtractorRegistry?: ToolAccessExtractorRegistrar;
   authorizerRegistry?: AuthorizerRegistrar;
+  isYoloEnabled?: () => boolean;
 }) {
   const resolver = overrides?.resolver ?? makeResolver();
   // The published service always answers against the parent session's cwd.
-  const session = { getPathNormalizer: () => normalizer };
+  const session = {
+    getPathNormalizer: () => normalizer,
+    isYoloEnabled: overrides?.isYoloEnabled ?? (() => false),
+  };
   const formatterRegistry =
     overrides?.formatterRegistry ?? makeFormatterRegistry();
   const accessExtractorRegistry =
@@ -146,8 +150,20 @@ describe("checkPermission", () => {
       "cd /repo && npm install x",
       "my-agent",
       resolver,
+      { yolo: false },
     );
     expect(result).toBe(expected);
+  });
+
+  it("forwards the session's yolo flag so advisory queries match the gate", () => {
+    const { service, resolver } = makeService({ isYoloEnabled: () => true });
+    service.checkPermission("bash", "bash -c 'echo hi'");
+    expect(resolveBashAdvisoryCheck).toHaveBeenCalledWith(
+      "bash -c 'echo hi'",
+      undefined,
+      resolver,
+      { yolo: true },
+    );
   });
 
   it("passes an empty string to the advisory resolver for a value-less bash query", () => {
@@ -157,6 +173,7 @@ describe("checkPermission", () => {
       "",
       undefined,
       resolver,
+      { yolo: false },
     );
   });
 

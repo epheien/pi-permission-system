@@ -13,6 +13,7 @@ import {
   type ToolRegistry,
 } from "#src/tool-registry";
 import { toRecord } from "#src/value-guards";
+import type { GateBypass } from "./gates/descriptor";
 import type { GateRunner } from "./gates/runner";
 import type {
   GateNotifier,
@@ -51,12 +52,6 @@ export class PermissionGateHandler {
   ): Promise<GateOutcome> {
     this.session.activate(ctx);
 
-    const validation = validateRequestedTool(event, this.toolRegistry.getAll());
-    if (validation.status === "block") {
-      return { action: "block", reason: validation.reason };
-    }
-    const toolName = validation.toolName;
-
     const agentName = this.session.resolveAgentName(ctx);
 
     const input = getEventInput(event);
@@ -64,6 +59,28 @@ export class PermissionGateHandler {
       typeof (event as Record<string, unknown>).toolCallId === "string"
         ? ((event as Record<string, unknown>).toolCallId as string)
         : "";
+
+    const validation = validateRequestedTool(event, this.toolRegistry.getAll());
+    if (validation.status === "block") {
+      // Under yolo the extension bypasses every check but an explicit deny.
+      // A tool name Pi itself will reject (unknown/unregistered) therefore
+      // passes through — recorded as an auto-approval so the bypass stays
+      // auditable rather than looking like a silent allow.
+      if (!this.session.isYoloEnabled()) {
+        return { action: "block", reason: validation.reason };
+      }
+      return await this.runner.run(
+        yoloUnregisteredToolBypass(
+          event,
+          toolCallId,
+          agentName,
+          validation.reason,
+        ),
+        agentName,
+        toolCallId,
+      );
+    }
+    const toolName = validation.toolName;
 
     const tcc: ToolCallContext = {
       toolName,
@@ -108,6 +125,37 @@ export class PermissionGateHandler {
 }
 
 // ── Pure helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Build the audited bypass result for a tool name Pi itself will reject.
+ *
+ * Under yolo the extension bypasses every check but an explicit `deny`, and an
+ * unregistered or missing tool name can never match a `deny` rule — so it
+ * passes. Recorded as an auto-approval (rather than a silent allow) so the
+ * review log still shows what yolo let through and why.
+ */
+function yoloUnregisteredToolBypass(
+  event: unknown,
+  toolCallId: string,
+  agentName: string | null,
+  blockedReason: string,
+): GateBypass {
+  return {
+    action: "allow",
+    log: {
+      event: "permission_request.auto_approved",
+      details: {
+        source: "tool_call",
+        toolCallId,
+        toolName: getToolNameFromValue(event) ?? "<unknown>",
+        agentName,
+        resolution: "auto_approved",
+        bypassedCheck: "unregistered-tool",
+        blockedReason,
+      },
+    },
+  };
+}
 
 /** Discriminated result of validating a tool-call event's name and registration. */
 export type RequestedToolValidation =

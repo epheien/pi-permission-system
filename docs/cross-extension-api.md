@@ -455,7 +455,7 @@ pi.events.on("permissions:decision", (raw) => {
 | `user_approved`               | User approved once via dialog                                        |
 | `user_approved_for_session`   | User approved for the rest of the session                            |
 | `user_denied`                 | User denied via dialog                                               |
-| `auto_approved`               | Yolo mode — approved automatically without dialog                    |
+| `auto_approved`               | Yolo mode — approved automatically without dialog; also covers the checks yolo bypasses (unknown tool, bash floors) |
 | `confirmation_unavailable`    | State was `ask` but no UI was available — blocked                    |
 
 ---

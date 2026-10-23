@@ -30,6 +30,7 @@ Permission enforcement extension for the [Pi](https://pi.mariozechner.at/) codin
 - **Native [`@gotgenes/pi-subagents`](https://github.com/gotgenes/pi-subagents) integration** — in-process child sessions register with the permission system automatically, enabling per-agent policy enforcement and `ask`-state forwarding to the parent UI without configuration
 - **Public YOLO-mode config service** — `getPermissionConfigService()` reads and toggles YOLO mode.
   A configurable TUI shortcut (default `ctrl+alt+y`, set `keybindings.yoloToggle` in `config.json`) toggles it anytime, and `/permission-system yolo` is the headless/CLI path.
+  YOLO bypasses **every** check but an explicit `deny` — asks, unknown tools, bash wrapper/unparseable floors and fail-closed gate errors all pass, and each bypass is still written to the review log.
   YOLO is **process-lifetime** — an in-memory toggle that is never persisted.
   Once enabled it stays on until you quit Pi (restarting starts with it off).
 - **Configurable keybindings** — every shortcut (YOLO toggle, overlay dialog decision/nav keys, diff-view navigation) can be rebound via the `keybindings` config block, styled after pi-show-diffs.json.
