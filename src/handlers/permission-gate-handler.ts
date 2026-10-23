@@ -52,15 +52,9 @@ export class PermissionGateHandler {
   ): Promise<GateOutcome> {
     this.session.activate(ctx);
 
-    const agentName = this.session.resolveAgentName(ctx);
-
-    const input = getEventInput(event);
-    const toolCallId =
-      typeof (event as Record<string, unknown>).toolCallId === "string"
-        ? ((event as Record<string, unknown>).toolCallId as string)
-        : "";
-
     const validation = validateRequestedTool(event, this.toolRegistry.getAll());
+    const agentName = this.session.resolveAgentName(ctx);
+    const toolCallId = readToolCallId(event);
     if (validation.status === "block") {
       // Under yolo the extension bypasses every check but an explicit deny.
       // A tool name Pi itself will reject (unknown/unregistered) therefore
@@ -81,6 +75,7 @@ export class PermissionGateHandler {
       );
     }
     const toolName = validation.toolName;
+    const input = getEventInput(event);
 
     const tcc: ToolCallContext = {
       toolName,
@@ -127,6 +122,19 @@ export class PermissionGateHandler {
 // ── Pure helpers ─────────────────────────────────────────────────────────
 
 /**
+ * Read the tool-call id without assuming the event is an object.
+ *
+ * `tool_call` events are SDK-shaped in practice, but the id is read before
+ * validation, so a malformed event must not throw here — the fail-closed
+ * boundary would turn that into a block on the non-yolo path (and, under yolo,
+ * into an allow).
+ */
+function readToolCallId(event: unknown): string {
+  const value = toRecord(event).toolCallId;
+  return typeof value === "string" ? value : "";
+}
+
+/**
  * Build the audited bypass result for a tool name Pi itself will reject.
  *
  * Under yolo the extension bypasses every check but an explicit `deny`, and an
@@ -140,6 +148,7 @@ function yoloUnregisteredToolBypass(
   agentName: string | null,
   blockedReason: string,
 ): GateBypass {
+  const toolName = getToolNameFromValue(event) ?? "<unknown>";
   return {
     action: "allow",
     log: {
@@ -147,12 +156,23 @@ function yoloUnregisteredToolBypass(
       details: {
         source: "tool_call",
         toolCallId,
-        toolName: getToolNameFromValue(event) ?? "<unknown>",
+        toolName,
         agentName,
         resolution: "auto_approved",
         bypassedCheck: "unregistered-tool",
         blockedReason,
       },
+    },
+    // The decision channel is a documented contract ("every gate resolution
+    // emits one"), so a bypassed unknown tool must not be review-log-only.
+    decision: {
+      surface: toolName,
+      value: toolName,
+      result: "allow",
+      resolution: "auto_approved",
+      origin: "yolo",
+      agentName,
+      matchedPattern: null,
     },
   };
 }

@@ -85,6 +85,25 @@ describe("resolveBashCommandCheck under yolo", () => {
     expect(result.origin).not.toBe("yolo");
   });
 
+  it("does not claim a trivially-empty command as a yolo grant", () => {
+    // Nothing was floored here, so the resolver's own origin must survive —
+    // tagging it "yolo" would report a plain policy allow as a bypass.
+    const resolver = makeResolver(
+      bashResult("allow", "# just a comment", undefined, "global"),
+    );
+
+    const result = resolveBashCommandCheck(
+      "# just a comment",
+      [],
+      undefined,
+      resolver,
+      { yolo: true },
+    );
+
+    expect(result.state).toBe("allow");
+    expect(result.origin).toBe("global");
+  });
+
   it("resolves the whole command instead of the unparseable ask sentinel", () => {
     const resolver = makeResolver(
       bashResult("allow", "cd /repo && git push", "*"),

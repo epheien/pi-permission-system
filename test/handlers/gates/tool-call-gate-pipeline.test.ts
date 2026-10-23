@@ -515,6 +515,12 @@ describe("ToolCallGatePipeline under yolo", () => {
 
     expect(result).toEqual({ action: "allow" });
     expect(deps.escalate).not.toHaveBeenCalled();
+    // The bypass must be auditable, not silent: the runner's yolo fast path
+    // owns the auto_approved entry for a wrapper floor yolo released.
+    expect(deps.reporter.writeReviewLog).toHaveBeenCalledWith(
+      "permission_request.auto_approved",
+      expect.objectContaining({ resolution: "auto_approved" }),
+    );
   });
 
   it("escalates the same wrapper command when yolo is off", async () => {

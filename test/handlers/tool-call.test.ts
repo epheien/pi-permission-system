@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { getEventInput } from "#src/handlers/permission-gate-handler";
 
 import {
+  getDecisionEvents,
   makeBashCommandCheck,
   makeCheckResult,
   makeCtx,
@@ -420,6 +421,35 @@ describe("handleToolCall under yolo", () => {
         bypassedCheck: "unregistered-tool",
       }),
     );
+  });
+
+  it("emits a decision event for the bypassed unregistered tool", async () => {
+    const { handler, session, events } = makeHandler({ tools: ["read"] });
+    vi.spyOn(session, "isYoloEnabled").mockReturnValue(true);
+
+    await handler.handleToolCall(makeToolCallEvent("ghost_tool"), makeCtx());
+
+    expect(getDecisionEvents(events)).toContainEqual(
+      expect.objectContaining({
+        surface: "ghost_tool",
+        value: "ghost_tool",
+        result: "allow",
+        resolution: "auto_approved",
+        origin: "yolo",
+      }),
+    );
+  });
+
+  it("blocks a null event instead of throwing into the fail-closed boundary", async () => {
+    // The yolo bypass reads the tool-call id earlier than validation used to;
+    // a malformed (null) event must still yield a deterministic block on the
+    // non-yolo path rather than an exception.
+    const { handler, session } = makeHandler();
+    vi.spyOn(session, "isYoloEnabled").mockReturnValue(false);
+
+    const result = await handler.handleToolCall(null, makeCtx());
+
+    expect(result.action).toBe("block");
   });
 
   it("still blocks an unregistered tool when yolo is off", async () => {

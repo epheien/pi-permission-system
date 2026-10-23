@@ -550,11 +550,23 @@ const effective = yolo
 
 Explicit `deny` rules are not `ask`, so they pass through untouched.
 That makes the invariant: **yolo blocks a call only on an explicit `deny`.**
-The ruleset rewrite covers the policy layer, but four entry points synthesize a decision outside `evaluate()` and would otherwise still stop a yolo session: the bash wrapper floor (`bash -c`, `sudo`, `env`, …), the unparseable-command sentinel, unknown/missing tool-name validation, and the fail-closed boundary's `catch`.
-Each consults the same per-event yolo reader and yields `allow` under yolo, tagging an allowed result `origin: "yolo"` where a policy rule did not already decide it — so `GateRunner`'s yolo fast path writes `permission_request.auto_approved` for all of them.
-The fail-closed boundary keeps its `permission_request.blocked` / `resolution: "gate_error"` entry (plus `yoloBypass: true`) even when it lets the call through: the bypass is auditable, not silent.
 
-It honors principle 5 (defaults are rules; no side-channel fallbacks): `evaluate()` runs pure over the rewritten ruleset, and the decision path loses all yolo knowledge.
+The ruleset rewrite covers the policy layer, but five entry points decide without reaching `evaluate()`, and each would otherwise still stop a yolo session:
+
+| Entry point                                                                             | Under yolo                                                                                                     |
+| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| bash wrapper floor (`bash -c`, `sudo`, `env`, …)                                        | not floored; an allowed result is tagged `origin: "yolo"`                                                      |
+| unparseable-command sentinel                                                            | the whole string is resolved instead (best-effort `deny` match)                                                |
+| unknown / missing tool name                                                             | passes; writes `permission_request.auto_approved` + a decision event with `bypassedCheck: "unregistered-tool"` |
+| `preResolved` / `preCheck` descriptor states (the skill-read gate's cached entry state) | normalized to `allow` + `origin: "yolo"` in the runner, since these skip the resolver                          |
+| fail-closed boundary `catch`                                                            | allows, but **keeps** `permission_request.blocked` / `resolution: "gate_error"` plus `yoloBypass: true`        |
+
+Both mid-decision readers go through `readYoloSafe`, which falls back to "yolo off" when the flag throws — so an unreadable toggle cannot turn a gate failure into a silent allow.
+The paths that do tag `origin: "yolo"` reach `GateRunner`'s yolo fast path and produce `permission_request.auto_approved`; the unknown-tool and gate-error paths write their own audited entries instead.
+An explicit `allow` rule, and the trivially-empty bash command, keep their own origin — yolo is not credited for a decision it did not make.
+
+Principle 5 still holds where it was written: `evaluate()` runs pure over the rewritten ruleset and knows nothing about yolo.
+The five entries above are deliberate, named exceptions — each reads the live flag and each records why it bypassed — not a general side channel.
 A future "disable everything" mode — overriding denies too — would be a *different*, deliberately named operation: appending a final `{ surface: "*", pattern: "*", action: "allow" }` rule (last-match-wins).
 It is not built, and it would be requested by name, never conflated with yolo.
 

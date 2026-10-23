@@ -2,6 +2,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { DecisionRecorder } from "#src/decision-audit";
 import type { DecisionReporter } from "#src/decision-reporter";
 import { toRecord } from "#src/value-guards";
+import { readYoloSafe } from "#src/yolo-reader";
 import type { GateOutcome } from "./gates/types";
 
 /** The SDK-facing result shape for a `tool_call` handler. */
@@ -61,7 +62,7 @@ export function createFailClosedToolCall(
         : {};
     } catch (error) {
       audit.recordError();
-      const yolo = readYolo(isYoloEnabled);
+      const yolo = readYoloSafe(isYoloEnabled);
       reporter.writeReviewLog("permission_request.blocked", {
         toolName: bestEffortToolName(event),
         command: bestEffortCommand(event),
@@ -77,18 +78,6 @@ export function createFailClosedToolCall(
 }
 
 // ── Defensive event readers (never throw) ──────────────────────────────────
-
-/**
- * Read the yolo flag without letting a misbehaving reader mask a real gate
- * failure: an unreadable flag falls back to "yolo off", preserving fail-closed.
- */
-function readYolo(isYoloEnabled: () => boolean): boolean {
-  try {
-    return isYoloEnabled();
-  } catch {
-    return false;
-  }
-}
 
 /** Best-effort tool name from a raw event; never throws. */
 function bestEffortToolName(event: unknown): string {

@@ -10,6 +10,7 @@ import { applyPermissionGate } from "#src/permission-gate";
 import type { ScopedPermissionResolver } from "#src/permission-resolver";
 import type { SessionApprovalRecorder } from "#src/session-approval-recorder";
 import type { PermissionCheckResult } from "#src/types";
+import { readYoloSafe } from "#src/yolo-reader";
 import type { GateDescriptor, GateResult } from "./descriptor";
 import { isGateBypass } from "./descriptor";
 import { buildDecisionEvent, deriveResolution } from "./helpers";
@@ -32,6 +33,14 @@ export class GateRunner {
     private readonly recorder: SessionApprovalRecorder,
     private readonly prompter: AskEscalator,
     private readonly reporter: DecisionReporter,
+    /**
+     * yolo-mode reader. Descriptor states that never reach the resolver
+     * (`preResolved`, e.g. the skill-read gate's cached entry state) would
+     * otherwise replay a stale `ask` and prompt a yolo session; the read is
+     * defensive ({@link readYoloSafe}) so a throwing reader fails closed.
+     * Defaults to yolo disabled.
+     */
+    private readonly isYoloEnabled: () => boolean = () => false,
   ) {}
 
   /**
@@ -105,7 +114,17 @@ export class GateRunner {
       return { action: "allow" };
     }
 
-    // 2b. Yolo fast-path — a composition-stage ask→allow rewrite records
+    // 2b. Yolo normalization for a state that never reached the resolver.
+    // `preResolved` (and a `preCheck` built elsewhere) skip
+    // `PermissionManager.check`, so the composition-stage ask→allow rewrite
+    // never sees them — a cached `ask` from the skill-read gate would still
+    // prompt a yolo session. Normalizing after the session fast path keeps a
+    // recorded session approval attributed to the session, not to yolo.
+    if (check.state !== "deny" && readYoloSafe(this.isYoloEnabled)) {
+      check = { ...check, state: "allow", origin: "yolo" };
+    }
+
+    // 2c. Yolo fast-path — a composition-stage ask→allow rewrite records
     // origin "yolo" on the matched rule. Auto-approve without prompting,
     // preserving today's single auto_approved review entry + decision event
     // so review-log parity holds (#526).

@@ -98,6 +98,7 @@ export function makeGateRunner(
     recordSessionApproval?: SessionApprovalRecorder["recordSessionApproval"];
     escalate?: AskEscalator["escalate"];
     reporter?: Partial<DecisionReporter>;
+    isYoloEnabled?: () => boolean;
   } = {},
 ) {
   const reporter = makeReporter(overrides.reporter);
@@ -121,6 +122,7 @@ export function makeGateRunner(
     { recordSessionApproval },
     { escalate },
     reporter,
+    overrides.isYoloEnabled ?? (() => false),
   );
   return {
     runner,

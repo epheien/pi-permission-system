@@ -316,7 +316,9 @@ export function makeHandler(overrides?: {
       .fn<AskEscalator["escalate"]>()
       .mockResolvedValue({ approved: true, state: "approved" }),
   };
-  const runner = new GateRunner(resolver, recorder, prompter, reporter);
+  const runner = new GateRunner(resolver, recorder, prompter, reporter, () =>
+    session.isYoloEnabled(),
+  );
   const handler = new PermissionGateHandler(
     session,
     toolRegistry,

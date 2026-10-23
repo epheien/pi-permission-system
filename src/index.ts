@@ -272,6 +272,7 @@ export default function piPermissionSystemExtension(pi: ExtensionAPI): void {
     sessionRules,
     authorizerSelection,
     reporter,
+    () => isYoloModeEnabled(configStore.current()),
   );
   const toolCallGatePipeline = new ToolCallGatePipeline(
     resolver,

@@ -820,7 +820,7 @@ A subagent's `ask` is **forwarded** to the parent for a human decision (a subage
 
 `yoloMode` is a **full bypass with one exception**: while it is on, this extension blocks a call only when it matches an explicit `deny` rule.
 Every other outcome — an `ask` rule, the universal fallback, unknown-tool validation, the wrapper (`bash -c`, `sudo`, …) and unparseable-command floors, skill prompts, and a fail-closed gate error — resolves to `allow` without prompting.
-The bypass still leaves a trace: an `ask` that yolo auto-approves, a tool name Pi will reject, and an internal gate error all write `permission_request.auto_approved` / `permission_request.blocked` review-log entries, so the review log distinguishes a yolo grant from a policy allow.
+The bypass still leaves a trace: an `ask` that yolo auto-approves, a tool name Pi will reject, and an internal gate error all write `permission_request.auto_approved` / `permission_request.blocked` review-log entries (and `permissions:decision` events), so the review log distinguishes a yolo grant from a policy allow.
 
 `subagentPermission` does **not** bypass YOLO mode: yolo is process-wide, and with it enabled this process's non-denied checks never prompt in any agent (subagents included).
 YOLO resets only when the Pi process exits (it is never persisted), so simply don't enable yolo (hotkey or `/permission-system yolo`) for this process when you want subagents to actually prompt.

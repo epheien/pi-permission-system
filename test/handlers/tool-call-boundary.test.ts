@@ -192,3 +192,26 @@ describe("createFailClosedToolCall under yolo", () => {
     expect((result as { block?: true }).block).toBe(true);
   });
 });
+
+describe("createFailClosedToolCall — unreadable yolo flag", () => {
+  // The yolo seam must not become a way to swallow a gate failure: if the flag
+  // itself throws, the boundary stays fail-closed.
+  it("still blocks a gate throw when the yolo reader throws", async () => {
+    const gate = vi
+      .fn<(event: unknown, ctx: ExtensionContext) => Promise<GateOutcome>>()
+      .mockRejectedValue(new Error("gate exploded"));
+    const boundary = createFailClosedToolCall(
+      gate,
+      makeReporter(),
+      makeAudit(),
+      makeTracer(),
+      () => {
+        throw new Error("config store not ready");
+      },
+    );
+
+    const result = await boundary(makeToolCallEvent("bash"), makeCtx());
+
+    expect((result as { block?: true }).block).toBe(true);
+  });
+});

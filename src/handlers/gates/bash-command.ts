@@ -95,8 +95,10 @@ export function resolveBashCommandCheck(
     });
 
   if (commands.length === 0) {
+    // Nothing to floor here (empty / comment-only), so the resolver's own
+    // origin survives — tagging it "yolo" would misreport a plain allow.
     if (isTriviallyEmptyCommand(command)) {
-      return yolo ? tagYolo(resolveWhole()) : resolveWhole();
+      return resolveWhole();
     }
     // yolo: the whole-string match is the best available `deny` check when
     // the command cannot be decomposed — never prompt.

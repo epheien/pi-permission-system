@@ -42,8 +42,10 @@ While yolo is on, the extension blocks a tool call **only** when it matches an e
 4. The unparseable-command sentinel: the whole command string is resolved instead.
    This is a *best-effort* `deny` check — a `deny` on a sub-command that only a successful parse would isolate cannot match.
    Accepted: yolo is an explicit opt-out, and an unparseable command cannot be decomposed.
-5. Unknown / missing tool names: the call passes, recorded as `permission_request.auto_approved` with `bypassedCheck: "unregistered-tool"`, because Pi itself rejects unknown tools.
+5. Unknown / missing tool names: the call passes, recorded as `permission_request.auto_approved` with `bypassedCheck: "unregistered-tool"` plus a `permissions:decision` event, because Pi itself rejects unknown tools.
 6. Internal gate failures: the boundary returns allow, and **still** writes `permission_request.blocked` with `resolution: "gate_error"` plus `yoloBypass: true`.
+7. Descriptor states that skip the resolver (`preResolved`, used by the skill-read gate for an entry state computed at `before_agent_start`): normalized to `allow` + `origin: "yolo"` in the runner.
+   Without this, toggling yolo mid-turn would replay the cached `ask` and prompt.
 
 ### What does not change
 
@@ -55,7 +57,22 @@ While yolo is on, the extension blocks a tool call **only** when it matches an e
 ### Auditing is part of the decision
 
 A bypass that leaves no trace is indistinguishable from a bug.
-Every path above writes a review-log entry, and `GateRunner`'s existing yolo fast path (`check.origin === "yolo"`) already emits `permission_request.auto_approved` with `resolution: "auto_approved"`.
+Every path above writes a review-log entry, and `GateRunner`'s existing yolo fast path (`check.origin === "yolo"`) emits `permission_request.auto_approved` with `resolution: "auto_approved"`.
+The paths that do not route through that fast path — unknown tool, gate error — write their own entries, and the unknown-tool path also emits the decision event the channel contract promises.
+A decision yolo did not make (an explicit `allow` rule, a trivially-empty command) keeps its own `origin`: yolo is never credited for a policy allow.
+
+### Reading the flag safely
+
+The two mid-decision readers (the boundary's `catch` and the runner's pre-resolved normalization) go through `readYoloSafe`, which falls back to *yolo off* when the predicate throws.
+An unreadable toggle must never convert a gate failure into a silent allow.
+
+### Accepted gaps
+
+- **Unparseable bash**: whole-string `deny` matching only (see item 4).
+- **Forwarded requests without an `accessIntent`**: `ForwardedRequestServer` synthesizes `ask` for a structurally incomplete request (ADR 0008's fail-safe).
+  That is not a `deny`, so yolo does not release it, and a parent without a UI can still deny the child's call.
+  Reachable only with a version-skewed or legacy forwarding peer; kept because the alternative — treating an unparseable request as allowed — is the fail-open ADR 0008 exists to prevent.
+- **Aggregate block counters**: a yolo-bypassed gate error is still logged as `permission_request.blocked`, so consumers counting blocks must filter on `yoloBypass`.
 
 ## Consequences
 

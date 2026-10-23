@@ -469,3 +469,55 @@ describe("GateRunner.run — null and bypass dispatch", () => {
     expect(result).toMatchObject({ action: "block" });
   });
 });
+
+// ── GateRunner under yolo ──────────────────────────────────────────────────
+
+describe("GateRunner — yolo normalization", () => {
+  // `skill-read` hands the runner a state computed at `before_agent_start`
+  // (`preResolved`), which never passes through the resolver's ask→allow
+  // rewrite. A mid-turn yolo toggle would otherwise replay that cached `ask`
+  // and prompt the user.
+  it("allows a pre-resolved ask without prompting when yolo is on", async () => {
+    const { runner, deps } = makeGateRunner({ isYoloEnabled: () => true });
+    const result = await runner.run(
+      makeDescriptor({ preResolved: { state: "ask" } }),
+      null,
+      "tc-1",
+    );
+
+    expect(result).toEqual({ action: "allow" });
+    expect(deps.escalate).not.toHaveBeenCalled();
+    expect(deps.reporter.writeReviewLog).toHaveBeenCalledWith(
+      "permission_request.auto_approved",
+      expect.objectContaining({ resolution: "auto_approved" }),
+    );
+    expect(deps.reporter.emitDecision).toHaveBeenCalledWith(
+      expect.objectContaining({
+        result: "allow",
+        resolution: "auto_approved",
+        origin: "yolo",
+      }),
+    );
+  });
+
+  it("still escalates a pre-resolved ask when yolo is off", async () => {
+    const { runner, deps } = makeGateRunner({ isYoloEnabled: () => false });
+    await runner.run(
+      makeDescriptor({ preResolved: { state: "ask" } }),
+      null,
+      "tc-1",
+    );
+    expect(deps.escalate).toHaveBeenCalled();
+  });
+
+  it("preserves a pre-resolved deny under yolo", async () => {
+    const { runner, deps } = makeGateRunner({ isYoloEnabled: () => true });
+    const result = await runner.run(
+      makeDescriptor({ preResolved: { state: "deny" } }),
+      null,
+      "tc-1",
+    );
+    expect(result).toMatchObject({ action: "block" });
+    expect(deps.escalate).not.toHaveBeenCalled();
+  });
+});

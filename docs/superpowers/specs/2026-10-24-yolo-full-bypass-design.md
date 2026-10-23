@@ -74,10 +74,12 @@
 
 ## 6. 测试
 
-- 新增 `test/bash-command-yolo.test.ts`:wrapper × yolo、空解析 × yolo、wrapper 上有显式 `deny` 时仍 `deny`
-- `test/handlers/permission-gate-handler.test.ts`:未知工具在 yolo 下放行并写 `auto_approved`
-- `test/handlers/tool-call-boundary.test.ts`:gate 抛错在 yolo 下放行且仍写 `gate_error`
-- 新增组合根级集成测试:yolo ON 时除 `deny` 外无任何 block
+- 新增 `test/handlers/gates/bash-command-yolo.test.ts`:wrapper × yolo、空解析 × yolo、wrapper 上有显式 `deny` 时仍 `deny`
+- `test/handlers/tool-call.test.ts`:未知工具在 yolo 下放行、写 `auto_approved` 并发 decision 事件
+- `test/handlers/tool-call-boundary.test.ts`:gate 抛错在 yolo 下放行且仍写 `gate_error`;yolo 读取抛错时仍 block
+- `test/handlers/gates/runner.test.ts`:yolo 下 `preResolved` 的 `ask` 归一为 `allow`、`deny` 保留
+- 新增 `test/yolo-reader.test.ts`:`readYoloSafe` 的回落
+- `test/composition-root.test.ts` 新增组合根级集成测试:yolo ON 时除 `deny` 外无任何 block
 - `test/permission-manager-yolo.test.ts` 现有 8 个 case 语义不变(deny 保留、非 deny 放开)
 
 ## 7. 文档
